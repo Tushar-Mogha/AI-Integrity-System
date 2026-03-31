@@ -214,3 +214,6 @@ data/
 # Saved models
 *.h5
 *.pkl
+
+# Module 1 large model file
+models/module1_roberta/model.safetensors
