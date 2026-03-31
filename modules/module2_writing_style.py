@@ -181,3 +181,44 @@ pickle.dump(scaler, open('models/module2_scaler.pkl', 'wb'))
 pickle.dump(tfidf, open('models/module2_tfidf.pkl', 'wb'))
 print("Model saved to models/ folder")
 print("\nModule 2 complete!")
+
+
+# ── Test predictions ──────────────────────────────────────────────────────────
+import pickle
+
+# load saved model
+model_loaded  = pickle.load(open('models/module2_model.pkl', 'rb'))
+scaler_loaded = pickle.load(open('models/module2_scaler.pkl', 'rb'))
+tfidf_loaded  = pickle.load(open('models/module2_tfidf.pkl', 'rb'))
+
+human_essay = "I think phones are really dangerous when people use them while driving. My uncle got into an accident because he was texting. I never use my phone when driving and everyone should follow this rule."
+
+ai_essay = "The proliferation of mobile telecommunication devices has engendered substantial deliberation regarding their utilization in contemporary academic environments. Research demonstrates that smartphone dependency significantly impairs cognitive performance among undergraduate students."
+
+def predict(essay):
+    # extract style features
+    features = get_writing_features(essay)
+    style_scaled = scaler_loaded.transform([features])
+    
+    # tfidf features
+    tfidf_features = tfidf_loaded.transform([essay])
+    
+    # combine
+    X = hstack([tfidf_features, sp.csr_matrix(style_scaled)])
+    
+    pred = model_loaded.predict(X)[0]
+    prob = model_loaded.predict_proba(X)[0]
+    
+    label = "AI" if pred == 1 else "Human"
+    return {
+        'prediction': label,
+        'ai_probability': round(prob[1] * 100, 2),
+        'human_probability': round(prob[0] * 100, 2)
+    }
+
+print("\n── Testing Module 2 Predictions ────────────────────")
+print("\nHuman Essay:")
+print(predict(human_essay))
+
+print("\nAI Essay:")
+print(predict(ai_essay))
