@@ -211,9 +211,9 @@ data/
 *.csv
 *.zip
 
-# Saved models
-*.h5
-*.pkl
+# Saved models - commented out to allow pushing small model files
+# *.h5
+# *.pkl
 
 # Module 1 large model file
 models/module1_roberta/model.safetensors
