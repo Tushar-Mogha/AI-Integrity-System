@@ -72,13 +72,10 @@ So, in this project, we tried to build a system that:
 
 ### Module 2 Output
 
-**Feature Extraction & Dataset Overview:**
+**Model Training & Accuracy:**
 
 ![Module 2 Result 1](images/Module2_result_1.png)
 
-**Model Training & Accuracy:**
-
-![Module 2 Result 2](images/Module2_result_2.png)
 
 **Sample Predictions:**
 
