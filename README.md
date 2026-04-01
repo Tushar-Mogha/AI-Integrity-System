@@ -1,7 +1,8 @@
 # AI-Assisted Academic Integrity Risk Detection System
 
-This project is developed as part of our MCA final year industry project (Xebia).  
-The goal of this system is to detect possible academic integrity risks using AI and data analysis.
+This project is developed as part of our MCA final year industry project (Xebia).
+
+The goal of this system is to detect possible academic integrity risks using a combination of AI-based text analysis and student performance data.
 
 ---
 
