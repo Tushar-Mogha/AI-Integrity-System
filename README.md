@@ -66,11 +66,11 @@ So, in this project, we tried to build a system that:
 
 ---
 
-## 📊 Results
+## Results
 
 ---
 
-### 🧠 Module 2 Output
+### Module 2 Output
 
 **Feature Extraction & Dataset Overview:**
 
@@ -89,7 +89,7 @@ So, in this project, we tried to build a system that:
 
 ---
 
-### 📈 Module 3 Output
+### Module 3 Output
 
 **Model Performance:**
 
@@ -106,7 +106,7 @@ So, in this project, we tried to build a system that:
 
 ---
 
-### 🤖 Module 1 Output
+### Module 1 Output
 
 ![Module 1 Result](Module1_result.png)
 
@@ -116,7 +116,7 @@ So, in this project, we tried to build a system that:
 
 ---
 
-## 💡 Key Features
+## Key Features
 
 - Detects AI-generated content  
 - Detects abnormal academic behavior  
