@@ -1,7 +1,8 @@
-# Writing Style Analysis - Module 2
-# This module extracts writing style features from essays
-# and classifies them as AI-generated or Human-written
-# Dataset used: DAIGT-V2 (Kaggle)
+# Module 2 - Writing Style Analysis
+# We are trying to detect if an essay is written by AI or a human
+# by looking at HOW the essay is written, not WHAT it is about
+# Dataset - DAIGT V2 from Kaggle (44868 essays)
+# Team - Abhinandan, Stuti, Tushar
 
 import os
 import string
@@ -18,67 +19,71 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 
 os.system('cls')
 
-# ── Loading the dataset ───────────────────────────────────────────────────────
-print("Loading DAIGT-V2 dataset...")
+# loading our dataset
+print("Loading dataset...")
 data = pd.read_csv('data/train_v2_drcat_02(Model_1).csv')
-print(f"Total essays loaded: {len(data)}")
-print(f"Human essays: {len(data[data['label']==0])}")
-print(f"AI essays: {len(data[data['label']==1])}")
+print("Total essays:", len(data))
+print("Human written:", len(data[data['label']==0]))
+print("AI written:", len(data[data['label']==1]))
 
 
-# ── Feature extraction ────────────────────────────────────────────────────────
-# We extract 7 writing style features from each essay
-# These features capture how a person writes - not what they write about
+# we decided to extract 7 features from each essay
+# these features tell us about the writing style of the author
+# for example - how long are the words, how complex are the sentences etc.
 
 def get_writing_features(essay):
-    
-    # return zeros if essay is empty or not a string
+
+    # if essay is empty just return zeros
     if not isinstance(essay, str) or len(essay.strip()) == 0:
         return [0, 0, 0, 0, 0, 0, 0]
-    
-    essay_clean = essay.strip()
-    
-    # clean words - remove punctuation and lowercase
-    raw_words = essay_clean.split()
-    words = [w.strip(string.punctuation).lower() for w in raw_words]
+
+    cleaned = essay.strip()
+
+    # get individual words after removing punctuation
+    raw = cleaned.split()
+    words = [w.strip(string.punctuation).lower() for w in raw]
     words = [w for w in words if len(w) > 0]
-    
-    # split into sentences - treat ! ? ; : same as full stop
-    for char in ['!', '?', ';', ':']:
-        essay_clean = essay_clean.replace(char, '.')
-    sentences = [s.strip() for s in essay_clean.split('.') if len(s.strip()) > 5]
-    
+
+    # split essay into sentences
+    # we treat ! ? ; : same as a full stop
+    for ch in ['!', '?', ';', ':']:
+        cleaned = cleaned.replace(ch, '.')
+    sentences = [s.strip() for s in cleaned.split('.') if len(s.strip()) > 5]
+
     # split into paragraphs
     paragraphs = [p.strip() for p in essay.split('\n') if len(p.strip()) > 10]
-    
-    # check for transition/linking words
-    linking_words = [
+
+    # linking words are used more in AI writing
+    linking = [
         'however', 'therefore', 'moreover', 'furthermore',
         'although', 'nevertheless', 'consequently', 'additionally',
         'meanwhile', 'otherwise', 'similarly', 'thus'
     ]
-    essay_words = essay.lower().split()
-    linking_count = sum(1 for w in linking_words if w in essay_words)
-    
-    # count meaningful punctuation only
-    meaningful_punct = set('.,!?;:')
-    punct_count = sum(1 for ch in essay if ch in meaningful_punct)
-    
-    # feature 1 - how long are the words on average
+    all_words = essay.lower().split()
+    linking_count = sum(1 for w in linking if w in all_words)
+
+    # count only meaningful punctuation marks
+    meaningful = set('.,!?;:')
+    punct_count = sum(1 for ch in essay if ch in meaningful)
+
+    # feature 1 - average word length
     avg_word_len = np.mean([len(w) for w in words]) if words else 0
-    
-    # feature 2 - how long are the sentences on average
+
+    # feature 2 - average sentence length
     avg_sent_len = np.mean([len(s.split()) for s in sentences]) if sentences else 0
-    
-    # feature 3 - vocabulary richness (more unique words = richer vocabulary)
+
+    # feature 3 - how rich is the vocabulary
+    # more unique words means richer vocabulary
     vocab_richness = len(set(words)) / len(words) if words else 0
-    
-    # feature 4 - punctuation usage
+
+    # feature 4 - punctuation count (already calculated)
+
     # feature 5 - number of paragraphs
     para_count = len(paragraphs)
-    
-    # feature 6 - use of linking/transition words
-    # feature 7 - how often capital letters are used
+
+    # feature 6 - linking word count (already calculated)
+
+    # feature 7 - how often capital letters appear
     capital_ratio = sum(1 for c in essay if c.isupper()) / len(essay) if essay else 0
 
     return [
@@ -92,11 +97,12 @@ def get_writing_features(essay):
     ]
 
 
-# apply feature extraction to all essays
-print("\nExtracting writing style features from all essays...")
-print("This will take about a minute...")
+# applying the feature extraction on all essays
+print("\nExtracting features from essays...")
+print("Please wait, this takes about a minute...")
 extracted = data['text'].apply(get_writing_features)
 
+# converting to dataframe
 style_df = pd.DataFrame(extracted.tolist(), columns=[
     'avg_word_len',
     'avg_sent_len',
@@ -108,117 +114,102 @@ style_df = pd.DataFrame(extracted.tolist(), columns=[
 ])
 style_df['label'] = data['label']
 
-print(f"Features extracted successfully!")
-print(f"\nSample features:")
+print("Done! Sample output:")
 print(style_df.head(3))
 
 
-# ── Removing bad data ─────────────────────────────────────────────────────────
-# removing essays with unrealistic word/sentence lengths
-# these are likely corrupted or non-essay entries
-print("\nCleaning outliers...")
+# removing essays that have unrealistic values
+# for example avg word length of 100 is clearly wrong data
+print("\nRemoving bad data...")
 style_df = style_df[style_df['avg_word_len'] < 20]
 style_df = style_df[style_df['avg_sent_len'] < 200]
 clean_data = data.loc[style_df.index]
-print(f"Essays after cleaning: {len(style_df)}")
+print("Essays remaining:", len(style_df))
 
 
-# ── TF-IDF features ───────────────────────────────────────────────────────────
-# TF-IDF captures word patterns in the essays
-# AI writing tends to use certain words more than humans
-# we use 500 most important word patterns (unigrams and bigrams)
-print("\nApplying TF-IDF on essay text...")
+# TF-IDF converts essay text into numbers
+# it finds which words are most important in each essay
+# AI tends to use certain words more frequently than humans
+print("\nApplying TF-IDF...")
 tfidf = TfidfVectorizer(max_features=500, stop_words='english', ngram_range=(1, 2))
 tfidf_matrix = tfidf.fit_transform(clean_data['text'])
-print(f"TF-IDF matrix shape: {tfidf_matrix.shape}")
+print("TF-IDF shape:", tfidf_matrix.shape)
 
 
-# ── Combining features ────────────────────────────────────────────────────────
-# scale the style features first
+# scaling our 7 features and combining with tfidf
 scaler = StandardScaler()
 style_scaled = scaler.fit_transform(style_df.drop('label', axis=1))
 
-# combine tfidf + style features into one feature matrix
+# final feature matrix = tfidf features + our 7 style features
 X = hstack([tfidf_matrix, sp.csr_matrix(style_scaled)])
 y = style_df['label'].values
-print(f"\nFinal feature matrix shape: {X.shape}")
+print("Final matrix shape:", X.shape)
 
 
-# ── Train test split ──────────────────────────────────────────────────────────
+# splitting data - 80% for training, 20% for testing
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
-print(f"\nTraining samples: {X_train.shape[0]}")
-print(f"Testing samples: {X_test.shape[0]}")
+print("\nTraining samples:", X_train.shape[0])
+print("Testing samples:", X_test.shape[0])
 
 
-# ── Model training ────────────────────────────────────────────────────────────
-# using Random Forest - works well with mixed feature types
-# n_jobs=-1 uses all CPU cores to speed up training
-print("\nTraining Random Forest model...")
+# training Random Forest
+# we tried Logistic Regression first but Random Forest gave better results
+print("\nTraining model...")
 model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
 model.fit(X_train, y_train)
-print("Training complete!")
+print("Training done!")
 
 
-# ── Evaluation ────────────────────────────────────────────────────────────────
+# checking how well our model performs
 y_pred = model.predict(X_test)
 
-print("\n── Model Performance ──────────────────────────────")
-print(f"Accuracy: {round(accuracy_score(y_test, y_pred) * 100, 2)}%")
-print("\nClassification Report:")
+print("\n── Results ────────────────────────────────────────")
+print("Accuracy:", round(accuracy_score(y_test, y_pred) * 100, 2), "%")
+print("\nDetailed Report:")
 print(classification_report(y_test, y_pred, target_names=['Human', 'AI']))
 print("Confusion Matrix:")
 print(confusion_matrix(y_test, y_pred))
 
 
-# ── Saving the model ──────────────────────────────────────────────────────────
-# saving model, scaler and tfidf so we can use them later in the dashboard
-# without having to retrain everything from scratch
-print("\nSaving model files...")
-pickle.dump(model, open('models/module2_model.pkl', 'wb'))
+# saving model files so we don't have to retrain every time
+print("\nSaving model...")
+pickle.dump(model,  open('models/module2_model.pkl', 'wb'))
 pickle.dump(scaler, open('models/module2_scaler.pkl', 'wb'))
-pickle.dump(tfidf, open('models/module2_tfidf.pkl', 'wb'))
-print("Model saved to models/ folder")
-print("\nModule 2 complete!")
+pickle.dump(tfidf,  open('models/module2_tfidf.pkl', 'wb'))
+print("Saved!")
+print("\nModule 2 done!")
 
 
-# ── Test predictions ──────────────────────────────────────────────────────────
-import pickle
-
-# load saved model
+# testing with sample essays to verify predictions
 model_loaded  = pickle.load(open('models/module2_model.pkl', 'rb'))
 scaler_loaded = pickle.load(open('models/module2_scaler.pkl', 'rb'))
 tfidf_loaded  = pickle.load(open('models/module2_tfidf.pkl', 'rb'))
 
 human_essay = "I think phones are really dangerous when people use them while driving. My uncle got into an accident because he was texting. I never use my phone when driving and everyone should follow this rule."
-
-ai_essay = "The proliferation of mobile telecommunication devices has engendered substantial deliberation regarding their utilization in contemporary academic environments. Research demonstrates that smartphone dependency significantly impairs cognitive performance among undergraduate students."
+ai_essay    = "The proliferation of mobile telecommunication devices has engendered substantial deliberation regarding their utilization in contemporary academic environments. Research demonstrates that smartphone dependency significantly impairs cognitive performance among undergraduate students."
 
 def predict(essay):
-    # extract style features
     features = get_writing_features(essay)
-    style_scaled = scaler_loaded.transform([features])
-    
-    # tfidf features
-    tfidf_features = tfidf_loaded.transform([essay])
-    
-    # combine
-    X = hstack([tfidf_features, sp.csr_matrix(style_scaled)])
-    
-    pred = model_loaded.predict(X)[0]
-    prob = model_loaded.predict_proba(X)[0]
-    
-    label = "AI" if pred == 1 else "Human"
+    style_input = pd.DataFrame([features], columns=[
+        'avg_word_len', 'avg_sent_len', 'vocab_richness',
+        'punct_count', 'para_count', 'linking_count', 'capital_ratio'
+    ])
+    style_scaled_input = scaler_loaded.transform(style_input)
+    tfidf_input        = tfidf_loaded.transform([essay])
+    X_input            = hstack([tfidf_input, sp.csr_matrix(style_scaled_input)])
+    pred               = model_loaded.predict(X_input)[0]
+    prob               = model_loaded.predict_proba(X_input)[0]
+    label              = "AI" if pred == 1 else "Human"
     return {
-        'prediction': label,
-        'ai_probability': round(prob[1] * 100, 2),
+        'prediction'       : label,
+        'ai_probability'   : round(prob[1] * 100, 2),
         'human_probability': round(prob[0] * 100, 2)
     }
 
-print("\n── Testing Module 2 Predictions ────────────────────")
-print("\nHuman Essay:")
+print("\n── Sample Predictions ──────────────────────────────")
+print("\nHuman Essay Test:")
 print(predict(human_essay))
-
-print("\nAI Essay:")
+print("\nAI Essay Test:")
 print(predict(ai_essay))

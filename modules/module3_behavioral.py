@@ -87,3 +87,33 @@ pickle.dump(model, open('models/module3_model.pkl', 'wb'))
 pickle.dump(scaler, open('models/module3_scaler.pkl', 'wb'))
 print("Model saved to models/ folder")
 print("\nModule 3 complete!")
+
+# testing with sample students to verify predictions
+model_loaded  = pickle.load(open('models/module3_model.pkl', 'rb'))
+scaler_loaded = pickle.load(open('models/module3_scaler.pkl', 'rb'))
+
+def predict_anomaly(G1, G2, G3, absences, studytime, failures):
+    features = [[G1, G2, G3, absences, studytime, failures]]
+    scaled   = scaler_loaded.transform(features)
+    pred     = model_loaded.predict(scaled)[0]
+    prob     = model_loaded.predict_proba(scaled)[0]
+    label    = "Anomaly" if pred == 1 else "Normal"
+    return {
+        'prediction'         : label,
+        'anomaly_probability': round(prob[1] * 100, 2),
+        'normal_probability' : round(prob[0] * 100, 2)
+    }
+
+print("\n── Sample Predictions ──────────────────────────────")
+
+# normal student - consistent grades
+print("\nNormal Student (G1=12, G2=13, G3=14):")
+print(predict_anomaly(12, 13, 14, 3, 2, 0))
+
+# suspicious student - sudden grade spike
+print("\nSuspicious Student (G1=8, G2=7, G3=18):")
+print(predict_anomaly(8, 7, 18, 1, 2, 0))
+
+# another normal student
+print("\nNormal Student (G1=15, G2=15, G3=16):")
+print(predict_anomaly(15, 15, 16, 2, 3, 0))
