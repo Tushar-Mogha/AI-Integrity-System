@@ -141,10 +141,10 @@ So, in this project, we tried to build a system that:
 ---
 
 ## Team Members
-
-- Tushar Mogha  
-- Abhinandan  
-- Stuti  
+ 
+- Abhinandan Kumar
+- Tushar Mogha 
+- Stuti Mishra
 
 ---
 
