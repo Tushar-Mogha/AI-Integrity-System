@@ -74,15 +74,15 @@ So, in this project, we tried to build a system that:
 
 **Feature Extraction & Dataset Overview:**
 
-![Module 2 Result 1](Module2_result_1.png)
+![Module 2 Result 1](images/Module2_result_1.png)
 
 **Model Training & Accuracy:**
 
-![Module 2 Result 2](Module2_result_2.png)
+![Module 2 Result 2](images/Module2_result_2.png)
 
 **Sample Predictions:**
 
-![Module 2 Result 3](Module2_result_3.png)
+![Module 2 Result 3](images/Module2_result_3.png)
 
 - Good accuracy  
 - Predicts AI vs Human with probability  
@@ -93,11 +93,11 @@ So, in this project, we tried to build a system that:
 
 **Model Performance:**
 
-![Module 3 Result 1](Module3_result_1.png)
+![Module 3 Result 1](images/Module3_result_1.png)
 
 **Sample Predictions:**
 
-![Module 3 Result 2](Module3_result_2.png)
+![Module 3 Result 2](images/Module3_result_2.png)
 
 - Accuracy: around **86–87%**
 - Detects:
@@ -108,7 +108,7 @@ So, in this project, we tried to build a system that:
 
 ### Module 1 Output
 
-![Module 1 Result](Module1_result.png)
+![Module 1 Result](images/Module1_result.png)
 
 - High accuracy during training (~98%)
 - Model trained using HuggingFace Transformers (RoBERTa)
