@@ -35,8 +35,57 @@
 #         'human_probability': round(probs[0][0].item() * 100, 2)
 #     }
 
-print("Module 1 - RoBERTa AI Text Detection")
-print("Training Accuracy: 98.95%")
-print("Model: huggingface.co/Tushar101/module1-roberta")
-print("Status: Deployment in progress")
-print("Fallback: Module 2 handling AI detection at 98.17% accuracy")
+# print("Module 1 - RoBERTa AI Text Detection")
+# print("Training Accuracy: 98.95%")
+# print("Model: huggingface.co/Tushar101/module1-roberta")
+# print("Status: Deployment in progress")
+# print("Fallback: Module 2 handling AI detection at 98.17% accuracy")
+
+# Module 1 - AI Text Detection
+# Model: Fine-tuned RoBERTa on DAIGT-V2 dataset (44,868 essays)
+# Training Accuracy: 99.60% achieved on Google Colab
+# Model saved at: https://huggingface.co/Tushar101/module1-roberta
+# Team - Abhinandan, Stuti, Tushar
+
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+print("Loading Module 1 - RoBERTa model...")
+model_path = "Tushar101/module1-roberta"
+
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+model     = AutoModelForSequenceClassification.from_pretrained(model_path)
+model.eval()
+print("Model loaded!")
+
+def predict_ai_or_human(text):
+    inputs = tokenizer(
+        text,
+        return_tensors="pt",
+        truncation=True,
+        padding=True,
+        max_length=512
+    )
+    with torch.no_grad():
+        outputs = model(**inputs)
+
+    probs      = torch.nn.functional.softmax(outputs.logits, dim=1)
+    ai_prob    = probs[0][1].item()
+    human_prob = probs[0][0].item()
+    label      = "AI" if ai_prob > 0.5 else "Human"
+
+    return {
+        "prediction"       : label,
+        "ai_probability"   : round(ai_prob * 100, 2),
+        "human_probability": round(human_prob * 100, 2)
+    }
+
+if __name__ == "__main__":
+    human = "I am a good boy , my name is Tushar."
+    ai    = "The implementation of comprehensive educational frameworks necessitates systematic evaluation of pedagogical methodologies to optimize student learning outcomes."
+
+    print("\n── Testing Module 1 ────────────────────────────────")
+    print("\nHuman Text:")
+    print(predict_ai_or_human(human))
+    print("\nAI Text:")
+    print(predict_ai_or_human(ai))
