@@ -96,8 +96,7 @@ def predict_module3(G1, G2, G3, absences, studytime, failures):
     baseline          = (G1 + G2) / 2
     grade_jump        = G3 - baseline
     grade_consistency = abs(G1 - G2)
-    features          = [[G1, G2, grade_jump, grade_consistency,
-                          absences, studytime, failures]]
+    features = [[G1, G2, grade_consistency, absences, studytime, failures]]
     scaled            = m3_scaler.transform(features)
     prob              = m3_model.predict_proba(scaled)[0]
     anomaly_prob      = prob[1]
@@ -160,7 +159,7 @@ if __name__ == "__main__":
     result2 = get_composite_risk(
         student_id   = "STU002",
         student_name = "Student B",
-        essay_text   = "I am a good student and I always try my best in every subject at school.",
+        essay_text   = "I am a good student with consistent good scores.",
         G1=12, G2=13, G3=14,
         absences=3, studytime=3, failures=0
     )
