@@ -50,6 +50,8 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
+os.system('cls')
+
 print("Loading Module 1 - RoBERTa model...")
 model_path = "Tushar101/module1-roberta"
 
