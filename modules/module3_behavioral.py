@@ -60,15 +60,16 @@ print(df['anomaly'].value_counts())
 print("Anomaly percentage:", round(df['anomaly'].mean() * 100, 2), "%")
 
 # selecting features for training
-# we dont use G3 directly - instead we use grade_jump
-# which captures the suspicious behaviour we are looking for
-features = ['G1', 'G2', 'grade_consistency', 'absences', 'studytime', 'failures']
+# we use grade_jump and grade_consistency along with academic features
+# grade_jump captures the suspicious behaviour we are looking for
+# grade_consistency tells us how stable the student was before the jump
+features = ['G1', 'G2', 'grade_jump', 'grade_consistency', 'absences', 'studytime', 'failures']
 X = df[features].values
 y = df['anomaly'].values
 
 # scaling features between 0 and 1
 print("\nScaling features...")
-scaler  = MinMaxScaler()
+scaler   = MinMaxScaler()
 X_scaled = scaler.fit_transform(X)
 
 # splitting data - 80% training, 20% testing
@@ -117,7 +118,8 @@ def predict_anomaly(G1, G2, G3, absences, studytime, failures):
     grade_jump        = G3 - baseline
     grade_consistency = abs(G1 - G2)
 
-    features_input = [[G1, G2, grade_consistency, absences, studytime, failures]]
+    features_input = [[G1, G2, grade_jump, grade_consistency,
+                       absences, studytime, failures]]
     scaled         = scaler.transform(features_input)
     pred           = model.predict(scaled)[0]
     prob           = model.predict_proba(scaled)[0]
