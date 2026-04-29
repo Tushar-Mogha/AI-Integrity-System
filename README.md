@@ -180,8 +180,8 @@ When no behavioral anomaly, text detection modules carry 40 percent weight each.
 
 School of Computer Science, UPES Dehradun — 2026
 
-Industry Mentor: Ms. Deborah Joy (Xebia)
-UPES Mentor: Dr. Sonam Saluja
+- Industry Mentor: Ms. Deborah Joy (Xebia)
+- UPES Mentor: Dr. Sonam Saluja
 
 ---
 
