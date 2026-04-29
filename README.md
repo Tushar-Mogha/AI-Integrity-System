@@ -99,6 +99,32 @@ The system flags suspicious cases for faculty review — it never makes direct a
 
 ---
 
+## Tech Stack
+
+| Category | Tool |
+|---|---|
+| Programming Language | Python 3.10 |
+| AI Detection Model | RoBERTa (HuggingFace Transformers) |
+| Text Classification | TF-IDF + Random Forest (scikit-learn) |
+| Behavioral Detection | Random Forest + Rule-Based Logic |
+| Dashboard | Streamlit |
+| Backend API | FastAPI (planned) |
+| Model Storage | HuggingFace Hub, Pickle |
+| Version Control | Git + GitHub |
+| Training Platform | Google Colab (Tesla T4 GPU) |
+
+---
+
+## Risk Assessment Logic
+
+- High Risk: Composite score 70 or above
+- Medium Risk: Composite score between 55 and 70
+- Low Risk: Composite score below 55
+
+When behavioral anomaly is detected, Module 3 weight increases to 40 percent.
+When no behavioral anomaly, text detection modules carry 40 percent weight each.
+
+---
 
 ## Key Features
 
@@ -138,20 +164,27 @@ The system flags suspicious cases for faculty review — it never makes direct a
 
 ## Future Work
 
-- Combine all modules into one system  
-- Create a dashboard (Streamlit)  
-- Improve model performance with more data  
+- Integrate FastAPI backend for model serving
+- Add SHAP and LIME explainability to dashboard
+- Deploy on Streamlit Cloud and Render
+- Integrate SQLite database for storing student records and risk history
+- Resolve Module 1 local deployment issue for full integration
 
 ---
 
-## Team Members
- 
-- Abhinandan Kumar
-- Tushar Mogha 
-- Stuti Mishra
+## Team
+
+- Abhinandan Kumar (590013661)
+- Tushar Mogha (590010547)
+- Stuti Mishra (590015857)
+
+School of Computer Science, UPES Dehradun — 2026
+
+Industry Mentor: Ms. Deborah Joy (Xebia)
+UPES Mentor: Dr. Sonam Saluja
 
 ---
 
 ## Conclusion
 
-This project shows how AI and data analysis can be used together to detect academic integrity risks in a better and more practical way.
+This project demonstrates that combining transformer-based AI detection, writing style analysis, and behavioral anomaly detection into a single unified system provides a more reliable and comprehensive approach to academic integrity monitoring than any single existing tool. The system is designed to assist faculty rather than replace human judgment, maintaining fairness and transparency throughout.
