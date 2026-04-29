@@ -1,0 +1,787 @@
+# AI-Assisted Academic Integrity Risk Detection System
+# Streamlit Dashboard
+# Team - Abhinandan, Stuti, Tushar
+
+import os
+import sys
+import torch
+import pickle
+import string
+import numpy as np
+import pandas as pd
+import streamlit as st
+import plotly.graph_objects as go
+import plotly.express as px
+from scipy.sparse import hstack
+import scipy.sparse as sp
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+
+# ── Page Config ───────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="Academic Integrity Risk Detection",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ── Custom CSS ────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'DM Sans', sans-serif;
+    }
+    .main { background-color: #0F1923; }
+
+    .stApp {
+        background: linear-gradient(135deg, #0F1923 0%, 1A2634 100%);
+    }
+
+    h1, h2, h3 {
+        font-family: 'DM Serif Display', serif !important;
+        color: #E8E0D0 !important;
+    }
+
+    .header-container {
+        background: linear-gradient(135deg, #1B2A4A 0%, #0F1923 100%);
+        border-left: 4px solid #C9A84C;
+        padding: 2rem 2.5rem;
+        border-radius: 0 12px 12px 0;
+        margin-bottom: 2rem;
+    }
+
+    .header-title {
+        font-family: 'DM Serif Display', serif;
+        font-size: 2.2rem;
+        color: #E8E0D0;
+        margin: 0;
+        line-height: 1.2;
+    }
+
+    .header-subtitle {
+        font-family: 'DM Sans', sans-serif;
+        color: #8A99B0;
+        font-size: 0.95rem;
+        margin-top: 0.5rem;
+    }
+
+    .metric-card {
+        background: linear-gradient(135deg, #1B2A4A, #162236);
+        border: 1px solid #2A3F5F;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+    }
+
+    .metric-value {
+        font-family: 'DM Serif Display', serif;
+        font-size: 2.5rem;
+        color: #C9A84C;
+        margin: 0;
+    }
+
+    .metric-label {
+        font-family: 'DM Sans', sans-serif;
+        color: #8A99B0;
+        font-size: 0.85rem;
+        margin-top: 0.3rem;
+    }
+
+    .risk-high {
+        background: linear-gradient(135deg, #4A1B1B, #3D1515);
+        border: 1px solid #8B3A3A;
+        border-radius: 8px;
+        padding: 0.4rem 1rem;
+        color: #FF6B6B;
+        font-weight: 600;
+        font-size: 0.85rem;
+        display: inline-block;
+    }
+
+    .risk-medium {
+        background: linear-gradient(135deg, #4A3A1B, #3D2E15);
+        border: 1px solid #8B6A3A;
+        border-radius: 8px;
+        padding: 0.4rem 1rem;
+        color: #FFB347;
+        font-weight: 600;
+        font-size: 0.85rem;
+        display: inline-block;
+    }
+
+    .risk-low {
+        background: linear-gradient(135deg, #1B4A2A, #153D22);
+        border: 1px solid #3A8B5A;
+        border-radius: 8px;
+        padding: 0.4rem 1rem;
+        color: #6BCB77;
+        font-weight: 600;
+        font-size: 0.85rem;
+        display: inline-block;
+    }
+
+    .student-card {
+        background: linear-gradient(135deg, #1B2A4A, #162236);
+        border: 1px solid #2A3F5F;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+
+    .student-card:hover {
+        border-color: #C9A84C;
+    }
+
+    .section-header {
+        font-family: 'DM Serif Display', serif;
+        color: #C9A84C;
+        font-size: 1.1rem;
+        border-bottom: 1px solid #2A3F5F;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .info {
+        color: #8A99B0;
+        font-size: 0.9rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Load Models ───────────────────────────────────────────────────────────────
+@st.cache_resource
+def load_models():
+    # Module 1
+    m1_tokenizer = AutoTokenizer.from_pretrained("Tushar101/module1-roberta")
+    m1_model     = AutoModelForSequenceClassification.from_pretrained("Tushar101/module1-roberta")
+    m1_model.eval()
+
+    # Module 2
+    m2_model  = pickle.load(open("models/module2_model.pkl",  "rb"))
+    m2_scaler = pickle.load(open("models/module2_scaler.pkl", "rb"))
+    m2_tfidf  = pickle.load(open("models/module2_tfidf.pkl",  "rb"))
+
+    # Module 3
+    m3_model  = pickle.load(open("models/module3_model.pkl",  "rb"))
+    m3_scaler = pickle.load(open("models/module3_scaler.pkl", "rb"))
+
+    return m1_tokenizer, m1_model, m2_model, m2_scaler, m2_tfidf, m3_model, m3_scaler
+
+m1_tokenizer, m1_model, m2_model, m2_scaler, m2_tfidf, m3_model, m3_scaler = load_models()
+
+
+# ── Prediction Functions ──────────────────────────────────────────────────────
+def predict_module1(text):
+    inputs = m1_tokenizer(text, return_tensors="pt", truncation=True,
+                          padding=True, max_length=512)
+    with torch.no_grad():
+        outputs = m1_model(**inputs)
+    probs   = torch.nn.functional.softmax(outputs.logits, dim=1)
+    return round(probs[0][1].item() * 100, 2)
+
+def get_writing_features(essay):
+    if not isinstance(essay, str) or len(essay.strip()) == 0:
+        return [0, 0, 0, 0, 0, 0, 0]
+    cleaned = essay.strip()
+    raw     = cleaned.split()
+    words   = [w.strip(string.punctuation).lower() for w in raw]
+    words   = [w for w in words if len(w) > 0]
+    for ch in ['!', '?', ';', ':']:
+        cleaned = cleaned.replace(ch, '.')
+    sentences  = [s.strip() for s in cleaned.split('.') if len(s.strip()) > 5]
+    paragraphs = [p.strip() for p in essay.split('\n') if len(p.strip()) > 10]
+    linking    = ['however','therefore','moreover','furthermore','although',
+                  'nevertheless','consequently','additionally','meanwhile',
+                  'otherwise','similarly','thus']
+    all_words     = essay.lower().split()
+    linking_count = sum(1 for w in linking if w in all_words)
+    meaningful    = set('.,!?;:')
+    punct_count   = sum(1 for ch in essay if ch in meaningful)
+    avg_word_len  = np.mean([len(w) for w in words]) if words else 0
+    avg_sent_len  = np.mean([len(s.split()) for s in sentences]) if sentences else 0
+    vocab_rich    = len(set(words)) / len(words) if words else 0
+    para_count    = len(paragraphs)
+    capital_ratio = sum(1 for c in essay if c.isupper()) / len(essay) if essay else 0
+    return [avg_word_len, avg_sent_len, vocab_rich,
+            punct_count, para_count, linking_count, capital_ratio]
+
+def predict_module2(text):
+    features     = get_writing_features(text)
+    style_input  = pd.DataFrame([features], columns=[
+        'avg_word_len','avg_sent_len','vocab_richness',
+        'punct_count','para_count','linking_count','capital_ratio'
+    ])
+    style_scaled = m2_scaler.transform(style_input)
+    tfidf_input  = m2_tfidf.transform([text])
+    X_input      = hstack([tfidf_input, sp.csr_matrix(style_scaled)])
+    prob         = m2_model.predict_proba(X_input)[0]
+    return round(prob[1] * 100, 2)
+
+def predict_module3(G1, G2, G3, absences, studytime, failures):
+    baseline          = (G1 + G2) / 2
+    grade_jump        = G3 - baseline
+    grade_consistency = abs(G1 - G2)
+    features          = [[G1, G2, grade_jump, grade_consistency,
+                          absences, studytime, failures]]
+    scaled            = m3_scaler.transform(features)
+    prob              = m3_model.predict_proba(scaled)[0]
+    anomaly_prob      = prob[1]
+    if grade_jump < 2:
+        label = "Normal"
+    elif grade_jump >= 7:
+        label = "Anomaly"
+    elif 3 <= grade_jump < 7:
+        label = "Anomaly" if (failures > 0 or absences > 8
+                              or anomaly_prob > 0.25) else "Normal"
+    else:
+        label = "Normal"
+    return round(anomaly_prob * 100, 2), label, round(grade_jump, 2)
+
+def get_risk(composite):
+    if composite >= 70:   return "High Risk"
+    elif composite >= 55: return "Medium Risk"
+    else:                 return "Low Risk"
+
+def risk_color(risk):
+    return {"High Risk":"#FF6B6B","Medium Risk":"#FFB347","Low Risk":"#6BCB77"}.get(risk,"#8A99B0")
+
+def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures):
+    m1 = predict_module1(essay)
+    m2 = predict_module2(essay)
+    m3, beh_label, grade_jump = predict_module3(G1, G2, G3, absences, studytime, failures)
+    if beh_label == "Anomaly":
+        composite = (0.30 * m1) + (0.30 * m2) + (0.40 * m3)
+    else:
+        composite = (0.40 * m1) + (0.40 * m2) + (0.20 * m3)
+    risk = get_risk(composite)
+    wf   = get_writing_features(essay)
+    return {
+        "student_id": sid, "student_name": name,
+        "module1_ai_score": m1, "module2_style_score": m2,
+        "module3_behavior_score": m3, "behavior_label": beh_label,
+        "composite_score": round(composite, 2), "risk_level": risk,
+        "grade_jump": grade_jump, "baseline": round((G1+G2)/2, 2),
+        "G1": G1, "G2": G2, "G3": G3,
+        "absences": absences, "studytime": studytime, "failures": failures,
+        "writing_features": {
+            "Avg Word Length": wf[0], "Avg Sentence Length": wf[1],
+            "Vocabulary Richness": wf[2], "Punctuation Count": wf[3],
+            "Paragraph Count": wf[4], "Linking Words": wf[5]
+        }
+    }
+
+
+# ── Sidebar ───────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("""
+    <div style='padding:1rem 0; border-bottom:1px solid #2A3F5F; margin-bottom:1.5rem;'>
+        <div style='font-family:DM Serif Display,serif; font-size:1.3rem; color:#C9A84C;'>
+        🛡️ AcademicGuard
+        </div>
+        <div style='font-size:0.7rem; color:#8A99B0; letter-spacing:1px;'>
+        AI INTEGRITY SYSTEM
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    page = st.radio(
+        "Navigation",
+        ["🏠  Home", "👤  Individual Check", "📊  Class Analysis"],
+        label_visibility="collapsed"
+    )
+
+    st.markdown("""
+    <div style='margin-top:2rem; font-size:0.75rem; color:#8A99B0;'>
+    <b style='color:#C9A84C;'>Risk Levels</b><br>
+    🔴 High Risk  ≥ 70<br>
+    🟡 Medium Risk ≥ 55<br>
+    🟢 Low Risk   &lt; 55<br><br>
+    <b style='color:#C9A84C;'>Modules</b><br>
+    M1 · RoBERTa AI Detection<br>
+    M2 · Writing Style Analysis<br>
+    M3 · Behavioral Anomaly<br><br>
+    <b style='color:#C9A84C;'>Team</b><br>
+    Abhinandan Kumar<br>
+    Tushar Mogha<br>
+    Stuti Mishra<br>
+    UPES · SoCS · 2026
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ── Helper to show student report ─────────────────────────────────────────────
+def show_student_report(result):
+    rc = risk_color(result["risk_level"])
+
+    # Header
+    c1, c2, c3 = st.columns([2,1,1])
+    with c1:
+        st.markdown(f"""
+        <div style='background:#1B2A4A; border:1px solid #2A3F5F; border-radius:12px;
+                    padding:1.2rem;'>
+            <div style='font-size:0.75rem; color:#8A99B0; letter-spacing:1px;
+                        text-transform:uppercase;'>Student</div>
+            <div style='font-family:DM Serif Display,serif; font-size:1.6rem;
+                        color:#E8E0D0;'>{result['student_name']}</div>
+            <div style='color:#8A99B0; font-size:0.85rem;'>ID: {result['student_id']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-value' style='color:{rc};'>{result['composite_score']}</div>
+            <div class='metric-label'>Composite Score</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with c3:
+        emoji = {"High Risk":"🔴","Medium Risk":"🟡","Low Risk":"🟢"}.get(result['risk_level'],"⚪")
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-value' style='color:{rc}; font-size:1.4rem;'>
+            {emoji}<br>{result['risk_level']}</div>
+            <div class='metric-label'>Risk Level</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Gauge charts
+    st.markdown("<div class='section-header'>Module Score Breakdown</div>",
+                unsafe_allow_html=True)
+    gc1, gc2, gc3 = st.columns(3)
+    for col, mod, score, color in zip(
+        [gc1, gc2, gc3],
+        ["Module 1 · AI Detection", "Module 2 · Writing Style", "Module 3 · Behavioral"],
+        [result["module1_ai_score"], result["module2_style_score"], result["module3_behavior_score"]],
+        ["#3498DB", "#C9A84C", "#27AE60"]
+    ):
+        with col:
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=score,
+                number={"suffix":"%","font":{"size":28,"color":color}},
+                gauge={
+                    "axis":{"range":[0,100],"tickcolor":"#8A99B0","tickfont":{"size":10}},
+                    "bar":{"color":color},
+                    "bgcolor":"rgba(27,42,74,0.8)",
+                    "bordercolor":"#2A3F5F",
+                    "steps":[
+                        {"range":[0,40],"color":"rgba(39,174,96,0.08)"},
+                        {"range":[40,70],"color":"rgba(243,156,18,0.08)"},
+                        {"range":[70,100],"color":"rgba(231,76,60,0.08)"},
+                    ],
+                    "threshold":{"line":{"color":"#E74C3C","width":2},"thickness":0.75,"value":70}
+                },
+                title={"text":f"<b>{mod}</b>","font":{"size":12,"color":"#E8E0D0"}}
+            ))
+            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
+                              plot_bgcolor="rgba(0,0,0,0)",
+                              margin=dict(l=10,r=10,t=30,b=10), height=220,
+                              font=dict(color="#E8E0D0"))
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Grade chart + behavioral summary
+    st.markdown("<div class='section-header'>Grade Pattern Analysis</div>",
+                unsafe_allow_html=True)
+    pc1, pc2 = st.columns([2,1])
+    with pc1:
+        anomaly = result["behavior_label"] == "Anomaly"
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=["G1 (Period 1)","G2 (Period 2)","G3 (Final)"],
+            y=[result["G1"], result["G2"], result["G3"]],
+            mode="lines+markers+text",
+            text=[result["G1"], result["G2"], result["G3"]],
+            textposition="top center",
+            line=dict(color="#C9A84C", width=3),
+            marker=dict(
+                size=12,
+                color=["#3498DB","#3498DB","#E74C3C" if anomaly else "#27AE60"],
+                line=dict(width=2, color="#E8E0D0")
+            ),
+            fill="tozeroy",
+            fillcolor="rgba(201,168,76,0.06)"
+        ))
+        fig.add_hline(y=result["baseline"], line_dash="dash", line_color="#8A99B0",
+                      annotation_text=f"Baseline: {result['baseline']}",
+                      annotation_font_color="#8A99B0")
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
+                          plot_bgcolor="rgba(27,42,74,0.4)",
+                          margin=dict(l=10,r=10,t=20,b=10), height=260,
+                          font=dict(color="#E8E0D0"),
+                          yaxis=dict(range=[0,21],gridcolor="rgba(42,63,95,0.5)"),
+                          xaxis=dict(gridcolor="rgba(42,63,95,0.5)"),
+                          showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+    with pc2:
+        jc = "#E74C3C" if result["grade_jump"] > 5 else "#27AE60"
+        bc = "#E74C3C" if anomaly else "#27AE60"
+        st.markdown(f"""
+        <div style='background:#1B2A4A; border:1px solid #2A3F5F; border-left:3px solid #C9A84C;
+                    border-radius:12px; padding:1.2rem; height:100%;'>
+        <div style='font-size:0.8rem; color:#8A99B0;'>Baseline Score</div>
+        <div style='font-size:1.3rem; font-weight:700; color:#E8E0D0;'>{result['baseline']}</div>
+        <br>
+        <div style='font-size:0.8rem; color:#8A99B0;'>Grade Jump</div>
+        <div style='font-size:1.3rem; font-weight:700; color:{jc};'>+{result['grade_jump']}</div>
+        <br>
+        <div style='font-size:0.8rem; color:#8A99B0;'>Behavior Label</div>
+        <div style='font-weight:700; color:{bc};'>{result['behavior_label']}</div>
+        <br>
+        <div style='font-size:0.8rem; color:#8A99B0;'>
+        Absences: <b style='color:#E8E0D0;'>{result['absences']}</b> &nbsp;|&nbsp;
+        Failures: <b style='color:#E8E0D0;'>{result['failures']}</b>
+        </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Writing features bar chart
+    st.markdown("<div class='section-header'>Writing Style Features</div>",
+                unsafe_allow_html=True)
+    wf = result["writing_features"]
+    fig = go.Figure(go.Bar(
+        x=list(wf.keys()),
+        y=list(wf.values()),
+        marker=dict(
+            color=["#3498DB","#C9A84C","#27AE60","#E74C3C","#9B59B6","#1ABC9C"],
+            line=dict(color="rgba(42,63,95,0.5)", width=1)
+        ),
+        text=[f"{v:.2f}" for v in wf.values()],
+        textposition="outside",
+        textfont=dict(color="#E8E0D0", size=11)
+    ))
+    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
+                      plot_bgcolor="rgba(27,42,74,0.4)",
+                      margin=dict(l=10,r=10,t=20,b=10), height=250,
+                      font=dict(color="#E8E0D0"),
+                      yaxis=dict(gridcolor="rgba(42,63,95,0.5)"),
+                      xaxis=dict(gridcolor="rgba(42,63,95,0.5)"))
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Risk explanation
+    st.markdown("<div class='section-header'>Risk Explanation</div>",
+                unsafe_allow_html=True)
+    reasons = []
+    if result["module1_ai_score"] > 70:
+        reasons.append(f"AI Detection model flagged essay with {result['module1_ai_score']}% AI probability")
+    if result["module2_style_score"] > 70:
+        reasons.append(f"Writing style shows AI-like patterns with {result['module2_style_score']}% confidence")
+    if result["behavior_label"] == "Anomaly":
+        reasons.append(f"Grade jumped {result['grade_jump']} points above expected baseline of {result['baseline']}")
+    if result["failures"] > 0:
+        reasons.append(f"Student has {result['failures']} past failure(s) — high final grade is suspicious")
+    if result["absences"] > 8:
+        reasons.append(f"High absences ({result['absences']}) combined with improved performance is unusual")
+    if not reasons:
+        reasons.append("No strong indicators of academic misconduct detected")
+
+    items = "".join([f"<li style='margin:0.4rem 0; color:#8A99B0;'>{r}</li>" for r in reasons])
+    st.markdown(f"""
+    <div style='background:linear-gradient(135deg,rgba(201,168,76,0.06),rgba(15,25,35,0.5));
+                border:1px solid #2A3F5F; border-left:3px solid #C9A84C;
+                border-radius:12px; padding:1.2rem;'>
+    <b style='color:#C9A84C;'>Why was this student flagged?</b>
+    <ul style='margin-top:0.8rem; padding-left:1.2rem;'>{items}</ul>
+    <div style='margin-top:0.8rem; font-size:0.8rem; color:#8A99B0;
+                border-top:1px solid #2A3F5F; padding-top:0.8rem;'>
+    ⚠️ This is a decision-support tool. Final decisions rest with the faculty member.
+    </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Faculty notes
+    st.markdown("<div class='section-header'>Faculty Notes</div>", unsafe_allow_html=True)
+    st.text_area("Add observations", height=100,
+                 placeholder="Enter any additional observations...",
+                 key=f"note_{result['student_id']}")
+    st.button("💾  Save Note", key=f"save_{result['student_id']}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 1 — HOME
+# ══════════════════════════════════════════════════════════════════════════════
+if "🏠" in page:
+    st.markdown("""
+    <div class='header-container'>
+        <div class='header-title'>AI-Assisted Academic<br>Integrity Risk Detection</div>
+        <div class='header-subtitle'>
+        Detect AI-generated content · Analyze writing style · Flag behavioral anomalies
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    c1,c2,c3,c4 = st.columns(4)
+    for col, val, lbl in zip(
+        [c1,c2,c3,c4],
+        ["99.60%","98.17%","86.93%","3"],
+        ["M1 Accuracy","M2 Accuracy","M3 Accuracy","Modules"]
+    ):
+        with col:
+            st.markdown(f"""
+            <div class='metric-card'>
+                <div class='metric-value'>{val}</div>
+                <div class='metric-label'>{lbl}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>How It Works</div>", unsafe_allow_html=True)
+
+    c1,c2,c3 = st.columns(3)
+    modules_info = [
+        ("🤖","Module 1","AI Text Detection",
+         "Fine-tuned RoBERTa detects AI-generated text with 99.60% accuracy on 44,868 essays","#3498DB"),
+        ("✍️","Module 2","Writing Style Analysis",
+         "TF-IDF + Random Forest extracts 7 linguistic features to detect AI writing with 98.17% accuracy","#C9A84C"),
+        ("📈","Module 3","Behavioral Anomaly",
+         "Detects suspicious grade jumps using Random Forest on UCI Student Performance data","#27AE60"),
+    ]
+    for col, (icon,mod,title,desc,color) in zip([c1,c2,c3], modules_info):
+        with col:
+            st.markdown(f"""
+            <div style='background:#1B2A4A; border:1px solid #2A3F5F;
+                        border-top:3px solid {color}; border-radius:12px;
+                        padding:1.5rem; height:180px;'>
+                <div style='font-size:1.8rem;'>{icon}</div>
+                <div style='font-size:0.7rem; color:#8A99B0; letter-spacing:1px;
+                            text-transform:uppercase; margin-top:0.5rem;'>{mod}</div>
+                <div style='font-weight:600; color:{color}; margin:0.3rem 0;'>{title}</div>
+                <div style='font-size:0.82rem; color:#8A99B0;'>{desc}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>CSV Format Required</div>",
+                unsafe_allow_html=True)
+
+    sample = pd.DataFrame({
+        "student_id":["STU001","STU002"],
+        "student_name":["Rahul Sharma","Priya Singh"],
+        "essay_text":["Essay text here...","Essay text here..."],
+        "G1":[8,12],"G2":[7,13],"G3":[18,14],
+        "absences":[1,3],"studytime":[2,3],"failures":[0,0]
+    })
+    st.dataframe(sample, use_container_width=True, hide_index=True)
+
+    import io
+    buf = io.StringIO()
+    sample.to_csv(buf, index=False)
+    st.download_button("⬇️ Download Sample CSV", buf.getvalue(),
+                       "sample_students.csv", "text/csv")
+
+    st.markdown("""
+    <div style='background:rgba(201,168,76,0.06); border:1px solid #2A3F5F;
+                border-left:3px solid #C9A84C; border-radius:12px;
+                padding:1rem 1.2rem; margin-top:1rem;'>
+    <b style='color:#C9A84C;'>⚠️ Important</b><br>
+    <span style='color:#8A99B0; font-size:0.85rem;'>
+    This system is a decision-support tool. Risk flags are for faculty review only —
+    not automated accusations. All final decisions remain with the faculty member.
+    </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 2 — INDIVIDUAL CHECK
+# ══════════════════════════════════════════════════════════════════════════════
+elif "👤" in page:
+    st.markdown("<h2>Individual Student Analysis</h2>", unsafe_allow_html=True)
+    st.markdown("<p class='info'>Enter student details for instant risk assessment</p>",
+                unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        sid  = st.text_input("Student ID",   placeholder="e.g. STU001")
+        name = st.text_input("Student Name", placeholder="e.g. Rahul Sharma")
+    with c2:
+        gc1,gc2,gc3 = st.columns(3)
+        G1 = gc1.number_input("G1", 0, 20, 10)
+        G2 = gc2.number_input("G2", 0, 20, 10)
+        G3 = gc3.number_input("G3", 0, 20, 10)
+        gc4,gc5,gc6 = st.columns(3)
+        absences  = gc4.number_input("Absences",  0, 100, 3)
+        studytime = gc5.number_input("Study Time", 1, 4, 2)
+        failures  = gc6.number_input("Failures",   0, 10, 0)
+
+    essay = st.text_area("Essay Text", height=180,
+                         placeholder="Paste the student essay here...")
+
+    if st.button("🔍  Analyze Student"):
+        if not sid or not name or not essay:
+            st.error("Please fill in Student ID, Name, and Essay Text.")
+        else:
+            with st.spinner("Running analysis across all 3 modules..."):
+                result = analyze_student(sid, name, essay, G1, G2, G3,
+                                         absences, studytime, failures)
+            st.markdown("---")
+            show_student_report(result)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 3 — CLASS ANALYSIS
+# ══════════════════════════════════════════════════════════════════════════════
+elif "📊" in page:
+    st.markdown("<h2>Class-Wide Analysis</h2>", unsafe_allow_html=True)
+    st.markdown("<p class='info'>Upload CSV to analyze entire class at once</p>",
+                unsafe_allow_html=True)
+
+    uploaded = st.file_uploader("Upload Student CSV", type=["csv"])
+
+    if uploaded:
+        df  = pd.read_csv(uploaded)
+        req = ["student_id","student_name","essay_text","G1","G2","G3",
+               "absences","studytime","failures"]
+        missing = [c for c in req if c not in df.columns]
+
+        if missing:
+            st.error(f"Missing columns: {', '.join(missing)}")
+        else:
+            st.success(f"✅ {len(df)} students loaded!")
+
+            if st.button("🚀  Run Analysis on All Students"):
+                results = []
+                bar = st.progress(0, text="Analyzing...")
+                for i, row in df.iterrows():
+                    r = analyze_student(
+                        str(row["student_id"]), str(row["student_name"]),
+                        str(row["essay_text"]),
+                        int(row["G1"]), int(row["G2"]), int(row["G3"]),
+                        int(row["absences"]), int(row["studytime"]), int(row["failures"])
+                    )
+                    results.append(r)
+                    bar.progress((i+1)/len(df), text=f"Analyzing {row['student_name']}...")
+                bar.empty()
+                st.session_state["results"] = results
+                st.session_state["analyzed"] = True
+
+    if st.session_state.get("analyzed"):
+        results = st.session_state["results"]
+        rdf     = pd.DataFrame(results)
+
+        # Summary
+        total  = len(rdf)
+        high   = len(rdf[rdf["risk_level"]=="High Risk"])
+        medium = len(rdf[rdf["risk_level"]=="Medium Risk"])
+        low    = len(rdf[rdf["risk_level"]=="Low Risk"])
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        c1,c2,c3,c4 = st.columns(4)
+        for col, val, lbl, color in zip(
+            [c1,c2,c3,c4],
+            [total, high, medium, low],
+            ["Total Students","High Risk","Medium Risk","Low Risk"],
+            ["#C9A84C","#FF6B6B","#FFB347","#6BCB77"]
+        ):
+            with col:
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-value' style='color:{color};'>{val}</div>
+                    <div class='metric-label'>{lbl}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Charts
+        ch1, ch2 = st.columns(2)
+        layout = dict(paper_bgcolor="rgba(0,0,0,0)",
+                      plot_bgcolor="rgba(27,42,74,0.4)",
+                      margin=dict(l=10,r=10,t=30,b=10),
+                      font=dict(color="#E8E0D0"))
+
+        with ch1:
+            st.markdown("<div class='section-header'>Risk Distribution</div>",
+                        unsafe_allow_html=True)
+            fig = go.Figure(go.Pie(
+                labels=["High Risk","Medium Risk","Low Risk"],
+                values=[high, medium, low],
+                hole=0.6,
+                marker=dict(colors=["#E74C3C","#F39C12","#27AE60"],
+                            line=dict(color="#0F1923", width=2)),
+                textinfo="label+percent",
+                textfont=dict(color="#E8E0D0", size=12)
+            ))
+            fig.add_annotation(text=f"<b>{total}</b><br>Students",
+                               x=0.5, y=0.5, showarrow=False,
+                               font=dict(size=18, color="#C9A84C"))
+            fig.update_layout(**layout, height=300, showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with ch2:
+            st.markdown("<div class='section-header'>Score Distribution</div>",
+                        unsafe_allow_html=True)
+            fig = go.Figure(go.Histogram(
+                x=rdf["composite_score"], nbinsx=10,
+                marker=dict(
+                    color="#C9A84C",
+                    line=dict(color="#0F1923", width=1)
+                )
+            ))
+            fig.add_vline(x=70, line_dash="dash", line_color="#E74C3C",
+                          annotation_text="High", annotation_font_color="#E74C3C")
+            fig.add_vline(x=55, line_dash="dash", line_color="#F39C12",
+                          annotation_text="Medium", annotation_font_color="#F39C12")
+            fig.update_layout(**layout, height=300,
+                              xaxis=dict(title="Composite Score",
+                                         gridcolor="rgba(42,63,95,0.5)"),
+                              yaxis=dict(title="Students",
+                                         gridcolor="rgba(42,63,95,0.5)"))
+            st.plotly_chart(fig, use_container_width=True)
+
+        # Module comparison
+        st.markdown("<div class='section-header'>Module Score Comparison</div>",
+                    unsafe_allow_html=True)
+        fig = go.Figure()
+        for mod, color in [("module1_ai_score","#3498DB"),
+                           ("module2_style_score","#C9A84C"),
+                           ("module3_behavior_score","#27AE60")]:
+            fig.add_trace(go.Box(
+                y=rdf[mod],
+                name=mod.replace("_score","").replace("_"," ").title(),
+                marker_color=color, line_color=color
+            ))
+        fig.update_layout(**layout, height=300,
+                          yaxis=dict(title="Score (%)",
+                                     gridcolor="rgba(42,63,95,0.5)"))
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Results table
+        st.markdown("<div class='section-header'>Full Results Table</div>",
+                    unsafe_allow_html=True)
+        disp = rdf[[
+            "student_id","student_name",
+            "module1_ai_score","module2_style_score","module3_behavior_score",
+            "behavior_label","composite_score","risk_level"
+        ]].rename(columns={
+            "student_id":"ID","student_name":"Name",
+            "module1_ai_score":"M1 %","module2_style_score":"M2 %",
+            "module3_behavior_score":"M3 %","behavior_label":"Behavior",
+            "composite_score":"Score","risk_level":"Risk"
+        })
+        st.dataframe(disp, use_container_width=True, hide_index=True,
+                     column_config={
+                         "Score": st.column_config.ProgressColumn(
+                             "Score", min_value=0, max_value=100, format="%.1f"
+                         )
+                     })
+
+        import io
+        buf = io.StringIO()
+        disp.to_csv(buf, index=False)
+        st.download_button("⬇️ Download Results", buf.getvalue(),
+                           "results.csv", "text/csv")
+
+        # High risk students
+        high_df = rdf[rdf["risk_level"]=="High Risk"]
+        if len(high_df) > 0:
+            st.markdown("<div class='section-header'>🔴 High Risk Students</div>",
+                        unsafe_allow_html=True)
+            for _, row in high_df.iterrows():
+                with st.expander(f"🔴 {row['student_name']} — Score: {row['composite_score']}"):
+                    show_student_report(row.to_dict())
