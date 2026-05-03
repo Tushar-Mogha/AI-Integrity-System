@@ -4,6 +4,7 @@
 
 import os
 import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import torch
 import pickle
 import string
@@ -15,6 +16,7 @@ import plotly.express as px
 from scipy.sparse import hstack
 import scipy.sparse as sp
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from modules.module4_explainability import generate_shap_plot, get_text_explanation
 
 
 # ── Page Config ───────────────────────────────────────────────────────────────
@@ -260,17 +262,28 @@ def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures)
     risk = get_risk(composite)
     wf   = get_writing_features(essay)
     return {
-        "student_id": sid, "student_name": name,
-        "module1_ai_score": m1, "module2_style_score": m2,
-        "module3_behavior_score": m3, "behavior_label": beh_label,
-        "composite_score": round(composite, 2), "risk_level": risk,
-        "grade_jump": grade_jump, "baseline": round((G1+G2)/2, 2),
+        "student_id"            : sid,
+        "student_name"          : name,
+        "essay_text"            : essay,
+        "module1_ai_score"      : m1,
+        "module2_style_score"   : m2,
+        "module3_behavior_score": m3,
+        "behavior_label"        : beh_label,
+        "composite_score"       : round(composite, 2),
+        "risk_level"            : risk,
+        "grade_jump"            : grade_jump,
+        "baseline"              : round((G1+G2)/2, 2),
         "G1": G1, "G2": G2, "G3": G3,
-        "absences": absences, "studytime": studytime, "failures": failures,
+        "absences" : absences,
+        "studytime": studytime,
+        "failures" : failures,
         "writing_features": {
-            "Avg Word Length": wf[0], "Avg Sentence Length": wf[1],
-            "Vocabulary Richness": wf[2], "Punctuation Count": wf[3],
-            "Paragraph Count": wf[4], "Linking Words": wf[5]
+            "Avg Word Length"   : wf[0],
+            "Avg Sentence Length": wf[1],
+            "Vocabulary Richness": wf[2],
+            "Punctuation Count" : wf[3],
+            "Paragraph Count"   : wf[4],
+            "Linking Words"     : wf[5]
         }
     }
 
@@ -443,7 +456,7 @@ def show_student_report(result):
     # Writing features bar chart
     st.markdown("<div class='section-header'>Writing Style Features</div>",
                 unsafe_allow_html=True)
-    wf = result["writing_features"]
+    wf  = result["writing_features"]
     fig = go.Figure(go.Bar(
         x=list(wf.keys()),
         y=list(wf.values()),
@@ -463,6 +476,50 @@ def show_student_report(result):
                       xaxis=dict(gridcolor="rgba(42,63,95,0.5)"))
     st.plotly_chart(fig, use_container_width=True)
 
+    # SHAP Explanation
+    st.markdown("<div class='section-header'>SHAP Writing Style Analysis</div>",
+                unsafe_allow_html=True)
+
+    essay_text = result.get("essay_text", "")
+    if essay_text:
+        try:
+            import sys
+            sys.path.append(".")
+            from modules.module4_explainability import generate_shap_plot, get_text_explanation
+            import os
+
+            os.makedirs("outputs", exist_ok=True)
+            shap_path = f"outputs/shap_{result['student_id']}.png"
+
+            with st.spinner("Generating SHAP explanation..."):
+                generate_shap_plot(
+                    essay       = essay_text,
+                    student_name= result["student_name"],
+                    save_path   = shap_path
+                )
+
+            if os.path.exists(shap_path):
+                st.image(shap_path, use_column_width=True)
+
+            st.markdown("<b style='color:#C9A84C;'>Feature Impact Explanation:</b>",
+                        unsafe_allow_html=True)
+            explanations = get_text_explanation(
+                essay_text,
+                result["module2_style_score"]
+            )
+            for exp in explanations:
+                st.markdown(f"""
+                <div style='background:#1B2A4A; border-left:3px solid #C9A84C;
+                            border-radius:6px; padding:0.6rem 1rem; margin:0.3rem 0;
+                            font-size:0.85rem; color:#8A99B0;'>
+                {exp}
+                </div>
+                """, unsafe_allow_html=True)
+        except Exception as e:
+            st.warning(f"SHAP analysis unavailable: {str(e)}")
+    else:
+        st.info("Essay text not available for SHAP analysis")
+
     # Risk explanation
     st.markdown("<div class='section-header'>Risk Explanation</div>",
                 unsafe_allow_html=True)
@@ -480,7 +537,8 @@ def show_student_report(result):
     if not reasons:
         reasons.append("No strong indicators of academic misconduct detected")
 
-    items = "".join([f"<li style='margin:0.4rem 0; color:#8A99B0;'>{r}</li>" for r in reasons])
+    items = "".join([f"<li style='margin:0.4rem 0; color:#8A99B0;'>{r}</li>"
+                     for r in reasons])
     st.markdown(f"""
     <div style='background:linear-gradient(135deg,rgba(201,168,76,0.06),rgba(15,25,35,0.5));
                 border:1px solid #2A3F5F; border-left:3px solid #C9A84C;
@@ -489,17 +547,18 @@ def show_student_report(result):
     <ul style='margin-top:0.8rem; padding-left:1.2rem;'>{items}</ul>
     <div style='margin-top:0.8rem; font-size:0.8rem; color:#8A99B0;
                 border-top:1px solid #2A3F5F; padding-top:0.8rem;'>
-    ⚠️ This is a decision-support tool. Final decisions rest with the faculty member.
+    This is a decision-support tool. Final decisions rest with the faculty member.
     </div>
     </div>
     """, unsafe_allow_html=True)
 
     # Faculty notes
-    st.markdown("<div class='section-header'>Faculty Notes</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>Faculty Notes</div>",
+                unsafe_allow_html=True)
     st.text_area("Add observations", height=100,
                  placeholder="Enter any additional observations...",
                  key=f"note_{result['student_id']}")
-    st.button("💾  Save Note", key=f"save_{result['student_id']}")
+    st.button("Save Note", key=f"save_{result['student_id']}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
