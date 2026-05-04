@@ -246,15 +246,41 @@ def predict_module3(G1, G2, G3, absences, studytime, failures):
     prob = m3_model.predict_proba(scaled)[0]
     anomaly_prob = prob[1]
 
-    # keep your existing logic (no change)
-    if grade_jump < 2:
-        label = "Normal"
-    elif grade_jump >= 7:
+    # step 1: extreme jump
+    if grade_jump >= 6:
         label = "Anomaly"
-    elif 3 <= grade_jump < 7:
-        label = "Anomaly" if (failures > 0 or absences > 8 or anomaly_prob > 0.25) else "Normal"
-    else:
+
+    # step 2: strong jump
+    elif grade_jump >= 4:
+        label = "Anomaly"
+
+    # step 3: extreme decline
+    elif grade_jump <= -5:
+        label = "Anomaly"
+
+    # step 4: model decision
+    elif anomaly_prob >= 0.40:
+        label = "Anomaly"
+
+    elif anomaly_prob <= 0.25:
         label = "Normal"
+
+    # step 5: fallback
+    else:
+        if grade_jump >= 3:
+            label = "Anomaly"
+
+        elif grade_jump <= -4 and (failures > 0 or absences > 6):
+            label = "Anomaly"
+
+        elif consistency >= 6 and grade_jump > 2:
+            label = "Anomaly"
+
+        elif failures > 0 or absences > 8:
+            label = "Anomaly"
+
+        else:
+            label = "Normal"
 
     return round(anomaly_prob * 100, 2), label, round(grade_jump, 2)
 

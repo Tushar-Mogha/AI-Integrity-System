@@ -293,7 +293,7 @@ scenarios = [
     # High fluctuations
     ("High then low then high",     18,  6, 19, 5, 2, 0),
     ("Low then high then low",       5, 17,  4, 3, 2, 0),
-    ("Zigzag pattern",              12,  6, 15, 4, 2, 0),
+    ("Zigzag pattern",              13, 12 , 6, 5, 2, 4),
 
     # Borderline cases
     ("Borderline jump",             10, 10, 14, 2, 2, 0),
