@@ -224,23 +224,38 @@ def predict_module2(text):
     return round(prob[1] * 100, 2)
 
 def predict_module3(G1, G2, G3, absences, studytime, failures):
-    baseline          = (G1 + G2) / 2
-    grade_jump        = G3 - baseline
-    grade_consistency = abs(G1 - G2)
-    features          = [[G1, G2, grade_jump, grade_consistency,
-                          absences, studytime, failures]]
-    scaled            = m3_scaler.transform(features)
-    prob              = m3_model.predict_proba(scaled)[0]
-    anomaly_prob      = prob[1]
+    baseline = (G1 + G2) / 2
+    grade_jump = G3 - baseline
+
+    # new features (same as training)
+    trend = G2 - G1
+    consistency = abs(G1 - G2)
+    avg_score = (G1 + G2) / 2
+
+    features = [[
+        G1, G2,
+        trend,
+        consistency,
+        avg_score,
+        absences,
+        studytime,
+        failures
+    ]]
+
+    scaled = m3_scaler.transform(features)
+    prob = m3_model.predict_proba(scaled)[0]
+    anomaly_prob = prob[1]
+
+    # keep your existing logic (no change)
     if grade_jump < 2:
         label = "Normal"
     elif grade_jump >= 7:
         label = "Anomaly"
     elif 3 <= grade_jump < 7:
-        label = "Anomaly" if (failures > 0 or absences > 8
-                              or anomaly_prob > 0.25) else "Normal"
+        label = "Anomaly" if (failures > 0 or absences > 8 or anomaly_prob > 0.25) else "Normal"
     else:
         label = "Normal"
+
     return round(anomaly_prob * 100, 2), label, round(grade_jump, 2)
 
 def get_risk(composite):
