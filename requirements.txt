@@ -18,15 +18,15 @@
 # uvicorn==0.29.0
 # plotly==5.20.0
 
-streamlit==1.35.0
-transformers==4.40.2
-torch==2.3.0
-scikit-learn==1.4.2
-pandas==2.2.2
-numpy==1.26.4
-matplotlib==3.8.4
-scipy==1.13.0
-shap==0.45.0
-plotly==5.20.0
-huggingface_hub==0.23.0
-imbalanced-learn==0.12.2
+streamlit
+transformers
+torch
+scikit-learn
+pandas
+numpy
+matplotlib
+scipy
+shap
+plotly
+huggingface_hub
+imbalanced-learn
