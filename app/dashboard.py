@@ -6,6 +6,7 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import torch
+import requests
 import pickle
 import string
 import numpy as np
@@ -17,6 +18,7 @@ from scipy.sparse import hstack
 import scipy.sparse as sp
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from modules.module4_explainability import generate_shap_plot, get_text_explanation
+from app.database import save_result, get_all_results, get_student_history, update_note, delete_record
 
 
 # ── Page Config ───────────────────────────────────────────────────────────────
@@ -298,12 +300,12 @@ def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures)
     m3, beh_label, grade_jump = predict_module3(
         G1, G2, G3, absences, studytime, failures)
     if beh_label == "Anomaly":
-        composite = (0.30 * m1) + (0.30 * m2) + (0.40 * m3)
+        composite = (0.35 * m1) + (0.35 * m2) + (0.30 * m3)
     else:
-        composite = (0.25 * m1) + (0.30 * m2) + (0.45 * m3)
+        composite = (0.30 * m1) + (0.30 * m2) + (0.40 * m3)
     risk = get_risk(composite)
     wf   = get_writing_features(essay)
-    return {
+    result= {
         "student_id"            : sid,
         "student_name"          : name,
         "essay_text"            : essay,
@@ -329,7 +331,13 @@ def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures)
             "Linking Words"     : wf[5]
         }
     }
+    # save to database
+    try:
+        save_result(result)
+    except Exception as e:
+        pass  # don't break if db fails
 
+    return result
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -345,9 +353,9 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
     page = st.radio(
-        "Navigation",
-        ["🏠  Home", "👤  Individual Check", "📊  Class Analysis"],
-        label_visibility="collapsed"
+    "Navigation",
+    ["🏠  Home", "👤  Individual Check", "📊  Class Analysis", "📜  History"],
+    label_visibility="collapsed"
     )
 
     st.markdown("""
@@ -597,10 +605,28 @@ def show_student_report(result):
     # Faculty notes
     st.markdown("<div class='section-header'>Faculty Notes</div>",
                 unsafe_allow_html=True)
-    st.text_area("Add observations", height=100,
-                 placeholder="Enter any additional observations...",
-                 key=f"note_{result['student_id']}")
-    st.button("Save Note", key=f"save_{result['student_id']}")
+
+    note_key  = f"note_{result['student_id']}"
+    saved_key = f"saved_{result['student_id']}"
+
+    note = st.text_area(
+        "Add observations", height=100,
+        placeholder="Enter any additional observations...",
+        key=note_key
+    )
+
+    if st.button("Save Note", key=f"save_btn_{result['student_id']}"):
+        if note.strip():
+            try:
+                # get latest record id for this student
+                history = get_student_history(result["student_id"])
+                if history:
+                    update_note(history[0]["id"], note)
+                    st.success("Note saved successfully!")
+                else:
+                    st.warning("No record found to attach note to.")
+            except Exception as e:
+                st.error(f"Could not save note: {str(e)}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -618,9 +644,9 @@ if "🏠" in page:
 
     c1,c2,c3,c4 = st.columns(4)
     for col, val, lbl in zip(
-        [c1,c2,c3,c4],
-        ["99.60%","98.17%","86.93%","3"],
-        ["M1 Accuracy","M2 Accuracy","M3 Accuracy","Modules"]
+    [c1,c2,c3,c4],
+    ["99.60%","98.17%","91.96%","3"],   
+    ["M1 Accuracy","M2 Accuracy","M3 Accuracy","Modules"]
     ):
         with col:
             st.markdown(f"""
@@ -886,3 +912,186 @@ elif "📊" in page:
             for _, row in high_df.iterrows():
                 with st.expander(f"🔴 {row['student_name']} — Score: {row['composite_score']}"):
                     show_student_report(row.to_dict())
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE 4 — HISTORY
+# ══════════════════════════════════════════════════════════════════════════════
+elif "📜" in page:
+    st.markdown("<h2>Analysis History</h2>", unsafe_allow_html=True)
+    st.markdown("<p class='info'>All previously analyzed students stored in database</p>",
+                unsafe_allow_html=True)
+
+    try:
+        records = get_all_results()
+
+        if not records:
+            st.info("No records found. Analyze some students first.")
+        else:
+            # summary stats
+            total  = len(records)
+            high   = sum(1 for r in records if r["risk_level"] == "High Risk")
+            medium = sum(1 for r in records if r["risk_level"] == "Medium Risk")
+            low    = sum(1 for r in records if r["risk_level"] == "Low Risk")
+
+            c1,c2,c3,c4 = st.columns(4)
+            for col, val, lbl, color in zip(
+                [c1,c2,c3,c4],
+                [total, high, medium, low],
+                ["Total Records","High Risk","Medium Risk","Low Risk"],
+                ["#C9A84C","#FF6B6B","#FFB347","#6BCB77"]
+            ):
+                with col:
+                    st.markdown(f"""
+                    <div class='metric-card'>
+                        <div class='metric-value' style='color:{color};'>{val}</div>
+                        <div class='metric-label'>{lbl}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # search filter
+            st.markdown("<div class='section-header'>Search and Filter</div>",
+                        unsafe_allow_html=True)
+            fc1, fc2, fc3 = st.columns(3)
+            with fc1:
+                search_name = st.text_input("Search by Name", placeholder="Student name...")
+            with fc2:
+                filter_risk = st.selectbox("Filter by Risk",
+                                           ["All", "High Risk", "Medium Risk", "Low Risk"])
+            with fc3:
+                filter_behavior = st.selectbox("Filter by Behavior",
+                                               ["All", "Anomaly", "Normal"])
+
+            # apply filters
+            filtered = records
+            if search_name:
+                filtered = [r for r in filtered
+                            if search_name.lower() in r["student_name"].lower()]
+            if filter_risk != "All":
+                filtered = [r for r in filtered if r["risk_level"] == filter_risk]
+            if filter_behavior != "All":
+                filtered = [r for r in filtered if r["behavior_label"] == filter_behavior]
+
+            st.markdown(f"<p class='info'>Showing {len(filtered)} of {total} records</p>",
+                        unsafe_allow_html=True)
+
+            # display records
+            st.markdown("<div class='section-header'>Records</div>",
+                        unsafe_allow_html=True)
+
+            for record in filtered:
+                rc     = risk_color(record["risk_level"])
+                emoji  = {"High Risk":"🔴","Medium Risk":"🟡",
+                          "Low Risk":"🟢"}.get(record["risk_level"],"⚪")
+
+                with st.expander(
+                    f"{emoji} {record['student_name']} ({record['student_id']}) "
+                    f"— {record['risk_level']} — {record['analyzed_at']}"
+                ):
+                    dc1, dc2, dc3, dc4 = st.columns(4)
+                    for col, val, lbl, clr in zip(
+                        [dc1, dc2, dc3, dc4],
+                        [record["composite_score"], record["module1_score"],
+                         record["module2_score"], record["module3_score"]],
+                        ["Composite","M1 Score","M2 Score","M3 Score"],
+                        [rc, "#3498DB", "#C9A84C", "#27AE60"]
+                    ):
+                        with col:
+                            st.markdown(f"""
+                            <div class='metric-card' style='padding:0.8rem;'>
+                                <div class='metric-value' style='color:{clr};
+                                     font-size:1.5rem;'>{val}%</div>
+                                <div class='metric-label'>{lbl}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                    st.markdown("<br>", unsafe_allow_html=True)
+
+                    ic1, ic2 = st.columns(2)
+                    with ic1:
+                        st.markdown(f"""
+                        <div style='background:#1B2A4A; border:1px solid #2A3F5F;
+                                    border-radius:8px; padding:0.8rem; font-size:0.85rem;'>
+                        <b style='color:#C9A84C;'>Grade Info</b><br>
+                        <span style='color:#8A99B0;'>
+                        G1: <b style='color:#E8E0D0;'>{record['G1']}</b> &nbsp;
+                        G2: <b style='color:#E8E0D0;'>{record['G2']}</b> &nbsp;
+                        G3: <b style='color:#E8E0D0;'>{record['G3']}</b><br>
+                        Grade Jump: <b style='color:#E8E0D0;'>{record['grade_jump']}</b><br>
+                        Behavior: <b style='color:{"#E74C3C" if record["behavior_label"]=="Anomaly" else "#27AE60"};'>
+                        {record['behavior_label']}</b>
+                        </span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    with ic2:
+                        st.markdown(f"""
+                        <div style='background:#1B2A4A; border:1px solid #2A3F5F;
+                                    border-radius:8px; padding:0.8rem; font-size:0.85rem;'>
+                        <b style='color:#C9A84C;'>Student Info</b><br>
+                        <span style='color:#8A99B0;'>
+                        Writing Style: <b style='color:#E8E0D0;'>
+                        {record.get("module2_label","N/A")}</b><br>
+                        Absences: <b style='color:#E8E0D0;'>{record['absences']}</b><br>
+                        Failures: <b style='color:#E8E0D0;'>{record['failures']}</b>
+                        </span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    # show faculty note if exists
+                    if record.get("faculty_note"):
+                        st.markdown(f"""
+                        <div style='background:rgba(201,168,76,0.06);
+                                    border:1px solid #2A3F5F;
+                                    border-left:3px solid #C9A84C;
+                                    border-radius:8px; padding:0.8rem;
+                                    margin-top:0.5rem; font-size:0.85rem;'>
+                        <b style='color:#C9A84C;'>Faculty Note:</b><br>
+                        <span style='color:#8A99B0;'>{record['faculty_note']}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    # add/update note
+                    new_note = st.text_area(
+                        "Update Note", height=80,
+                        value=record.get("faculty_note",""),
+                        placeholder="Add faculty observation...",
+                        key=f"hist_note_{record['id']}"
+                    )
+                    nc1, nc2 = st.columns([1,4])
+                    with nc1:
+                        if st.button("Save", key=f"hist_save_{record['id']}"):
+                            update_note(record["id"], new_note)
+                            st.success("Note updated!")
+                            st.rerun()
+                    with nc2:
+                        if st.button("Delete Record",
+                                     key=f"hist_del_{record['id']}",
+                                     type="secondary"):
+                            delete_record(record["id"])
+                            st.warning("Record deleted.")
+                            st.rerun()
+
+            # download all history
+            st.markdown("<br>", unsafe_allow_html=True)
+            hist_df = pd.DataFrame(filtered)
+            if not hist_df.empty:
+                cols_to_show = ["student_id","student_name","composite_score",
+                                "risk_level","behavior_label","module2_label",
+                                "G1","G2","G3","grade_jump",
+                                "absences","failures","faculty_note","analyzed_at"]
+                hist_df = hist_df[[c for c in cols_to_show if c in hist_df.columns]]
+                import io
+                buf = io.StringIO()
+                hist_df.to_csv(buf, index=False)
+                st.download_button(
+                    "⬇️ Download History CSV",
+                    buf.getvalue(),
+                    "analysis_history.csv",
+                    "text/csv"
+                )
+
+    except Exception as e:
+        st.error(f"Could not load history: {str(e)}")
+        st.info("Make sure the database folder exists and you have analyzed at least one student.")
