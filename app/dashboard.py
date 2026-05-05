@@ -226,8 +226,6 @@ def predict_module2(text):
 def predict_module3(G1, G2, G3, absences, studytime, failures):
     baseline = (G1 + G2) / 2
     grade_jump = G3 - baseline
-
-    # new features (same as training)
     trend = G2 - G1
     consistency = abs(G1 - G2)
     avg_score = (G1 + G2) / 2
