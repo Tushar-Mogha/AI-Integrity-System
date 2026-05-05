@@ -221,7 +221,9 @@ def predict_module2(text):
     tfidf_input  = m2_tfidf.transform([text])
     X_input      = hstack([tfidf_input, sp.csr_matrix(style_scaled)])
     prob         = m2_model.predict_proba(X_input)[0]
-    return round(prob[1] * 100, 2)
+    ai_prob      = round(prob[1] * 100, 2)
+    label        = "AI Generated" if ai_prob >= 60 else "Human Written"
+    return ai_prob, label
 
 def predict_module3(G1, G2, G3, absences, studytime, failures):
     baseline = (G1 + G2) / 2
@@ -292,12 +294,13 @@ def risk_color(risk):
 
 def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures):
     m1 = predict_module1(essay)
-    m2 = predict_module2(essay)
-    m3, beh_label, grade_jump = predict_module3(G1, G2, G3, absences, studytime, failures)
+    m2, m2_label = predict_module2(essay)
+    m3, beh_label, grade_jump = predict_module3(
+        G1, G2, G3, absences, studytime, failures)
     if beh_label == "Anomaly":
         composite = (0.30 * m1) + (0.30 * m2) + (0.40 * m3)
     else:
-        composite = (0.40 * m1) + (0.40 * m2) + (0.20 * m3)
+        composite = (0.25 * m1) + (0.30 * m2) + (0.45 * m3)
     risk = get_risk(composite)
     wf   = get_writing_features(essay)
     return {
@@ -306,6 +309,7 @@ def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures)
         "essay_text"            : essay,
         "module1_ai_score"      : m1,
         "module2_style_score"   : m2,
+        "module2_label"         : m2_label,
         "module3_behavior_score": m3,
         "behavior_label"        : beh_label,
         "composite_score"       : round(composite, 2),
@@ -405,11 +409,11 @@ def show_student_report(result):
     st.markdown("<div class='section-header'>Module Score Breakdown</div>",
                 unsafe_allow_html=True)
     gc1, gc2, gc3 = st.columns(3)
-    for col, mod, score, color in zip(
+    for col, mod, score, color, extra_label in zip(
         [gc1, gc2, gc3],
         ["Module 1 · AI Detection", "Module 2 · Writing Style", "Module 3 · Behavioral"],
         [result["module1_ai_score"], result["module2_style_score"], result["module3_behavior_score"]],
-        ["#3498DB", "#C9A84C", "#27AE60"]
+        ["#3498DB", "#C9A84C", "#27AE60"],["", result.get("module2_label", ""), ""]
     ):
         with col:
             fig = go.Figure(go.Indicator(
@@ -428,12 +432,11 @@ def show_student_report(result):
                     ],
                     "threshold":{"line":{"color":"#E74C3C","width":2},"thickness":0.75,"value":70}
                 },
-                title={"text":f"<b>{mod}</b>","font":{"size":12,"color":"#E8E0D0"}}
+                title={"text":f"<b>{mod}</b>{'<br><span style=\"font-size:0.8em\">' + extra_label + '</span>' if extra_label else ''}",
+                "font":{"size":12,"color":"#E8E0D0"}}
             ))
-            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
-                              plot_bgcolor="rgba(0,0,0,0)",
-                              margin=dict(l=10,r=10,t=30,b=10), height=220,
-                              font=dict(color="#E8E0D0"))
+            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
+                              margin=dict(l=10,r=10,t=30,b=10), height=220,font=dict(color="#E8E0D0"))
             st.plotly_chart(fig, use_container_width=True)
 
     # Grade chart + behavioral summary
