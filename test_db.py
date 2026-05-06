@@ -63,3 +63,11 @@ if history:
     # verify
     history2 = get_student_history("TEST001")
     print("Note after update:", history2[0].get("faculty_note"))
+
+# check what update actually returns
+client = get_client()
+response = client.table("risk_results").update(
+    {"faculty_note": "debug test note"}
+).eq("id", 1).execute()
+print("Raw update response:", response)
+print("Updated data:", response.data)

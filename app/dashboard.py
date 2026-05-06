@@ -618,28 +618,22 @@ def show_student_report(result):
     if st.button("Save Note", key=f"save_btn_{result['student_id']}"):
         if note.strip():
             try:
-                # always fetch latest record directly from DB
                 history = get_student_history(result["student_id"])
-
-                record_id = None
+                st.write(f"DEBUG - History records found: {len(history)}")
+            
                 if history:
                     record_id = history[0]["id"]
-
-                if record_id:
                     success = update_note(record_id, note)
-
                     if success:
-                        st.success("Note saved! View it in the History page.")
+                        st.success("Note saved! Go to History page.")
                         st.balloons()
-                        st.rerun()
                     else:
-                        st.error("Note could not be saved. Try again.")
+                        st.warning("Note could not be saved. Try again.")
                 else:
                     st.warning("No record found. Analyze the student first.")
 
             except Exception as e:
                 st.error(f"Could not save note: {str(e)}")
-                print(f"Note save error: {e}")
         else:
             st.warning("Please write something before saving.")
 
@@ -761,8 +755,12 @@ elif "👤" in page:
             with st.spinner("Running analysis across all 3 modules..."):
                 result = analyze_student(sid, name, essay, G1, G2, G3,
                                          absences, studytime, failures)
-            st.markdown("---")
-            show_student_report(result)
+            st.session_state["last_result"] = result
+
+    # show report if result exists in session
+    if "last_result" in st.session_state:
+        st.markdown("---")
+        show_student_report(st.session_state["last_result"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -935,6 +933,12 @@ elif "📜" in page:
     st.markdown("<h2>Analysis History</h2>", unsafe_allow_html=True)
     st.markdown("<p class='info'>All previously analyzed students stored in database</p>",
                 unsafe_allow_html=True)
+
+    # add refresh button
+    col_ref, col_empty = st.columns([1, 5])
+    with col_ref:
+        if st.button("🔄 Refresh"):
+            st.rerun()
 
     try:
         all_records = get_all_results()
