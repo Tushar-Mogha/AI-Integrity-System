@@ -552,7 +552,7 @@ def show_student_report(result):
                 )
 
             if os.path.exists(shap_path):
-                st.image(shap_path, use_column_width=True)
+                st.image(shap_path, width=700)
 
             st.markdown("<b style='color:#C9A84C;'>Feature Impact Explanation:</b>",
                         unsafe_allow_html=True)
@@ -619,7 +619,6 @@ def show_student_report(result):
         if note.strip():
             try:
                 history = get_student_history(result["student_id"])
-                st.write(f"DEBUG - History records found: {len(history)}")
             
                 if history:
                     record_id = history[0]["id"]
