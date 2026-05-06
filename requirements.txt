@@ -10,3 +10,5 @@ shap
 plotly
 huggingface_hub
 imbalanced-learn
+supabase
+python-dotenv

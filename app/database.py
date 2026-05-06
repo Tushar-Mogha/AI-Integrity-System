@@ -1,115 +1,111 @@
 # Database helper for AcademicGuard
-import sqlite3
+# Uses Supabase PostgreSQL for persistent cloud storage
+# Team - Abhinandan, Stuti, Tushar
+
 import os
 from datetime import datetime
+from dotenv import load_dotenv
 
-DB_PATH = "database/results.db"
-os.makedirs("database", exist_ok=True)
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+def get_client():
+    from supabase import create_client
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def init_db():
-    conn   = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS risk_results (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_id      TEXT,
-            student_name    TEXT,
-            module1_score   REAL,
-            module2_score   REAL,
-            module2_label   TEXT,
-            module3_score   REAL,
-            composite_score REAL,
-            risk_level      TEXT,
-            behavior_label  TEXT,
-            grade_jump      REAL,
-            G1              INTEGER,
-            G2              INTEGER,
-            G3              INTEGER,
-            absences        INTEGER,
-            studytime       INTEGER,
-            failures        INTEGER,
-            essay_text      TEXT,
-            faculty_note    TEXT,
-            analyzed_at     TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
+    # table is already created in Supabase dashboard
+    # this function kept for compatibility
+    pass
 
 def save_result(result):
-    conn   = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO risk_results (
-            student_id, student_name, module1_score, module2_score,
-            module2_label, module3_score, composite_score, risk_level,
-            behavior_label, grade_jump, G1, G2, G3,
-            absences, studytime, failures, essay_text, analyzed_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    """, (
-        result["student_id"],
-        result["student_name"],
-        result["module1_ai_score"],
-        result["module2_style_score"],
-        result.get("module2_label", ""),
-        result["module3_behavior_score"],
-        result["composite_score"],
-        result["risk_level"],
-        result["behavior_label"],
-        result["grade_jump"],
-        result["G1"], result["G2"], result["G3"],
-        result["absences"], result["studytime"], result["failures"],
-        result.get("essay_text", ""),
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ))
-    conn.commit()
-    conn.close()
+    try:
+        client = get_client()
+        record = {
+            "student_id"    : result["student_id"],
+            "student_name"  : result["student_name"],
+            "module1_score" : result["module1_ai_score"],
+            "module2_score" : result["module2_style_score"],
+            "module2_label" : result.get("module2_label", ""),
+            "module3_score" : result["module3_behavior_score"],
+            "composite_score": result["composite_score"],
+            "risk_level"    : result["risk_level"],
+            "behavior_label": result["behavior_label"],
+            "grade_jump"    : result["grade_jump"],
+            "g1"            : result["G1"],
+            "g2"            : result["G2"],
+            "g3"            : result["G3"],
+            "absences"      : result["absences"],
+            "studytime"     : result["studytime"],
+            "failures"      : result["failures"],
+            "essay_text"    : result.get("essay_text", ""),
+            "faculty_note"  : "",
+            "analyzed_at"   : datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        client.table("risk_results").insert(record).execute()
+        return True
+    except Exception as e:
+        print(f"Database save error: {e}")
+        return False
 
 def update_note(record_id, note):
-    conn   = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE risk_results SET faculty_note=? WHERE id=?",
-        (note, record_id)
-    )
-    conn.commit()
-    conn.close()
+    try:
+        client = get_client()
+        client.table("risk_results").update(
+            {"faculty_note": note}
+        ).eq("id", record_id).execute()
+        return True
+    except Exception as e:
+        print(f"Database update error: {e}")
+        return False
 
 def get_all_results():
-    conn   = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT id, student_id, student_name, module1_score, module2_score,
-               module2_label, module3_score, composite_score, risk_level,
-               behavior_label, grade_jump, G1, G2, G3,
-               absences, studytime, failures, faculty_note, analyzed_at
-        FROM risk_results
-        ORDER BY analyzed_at DESC
-    """)
-    rows    = cursor.fetchall()
-    columns = [d[0] for d in cursor.description]
-    conn.close()
-    return [dict(zip(columns, row)) for row in rows]
+    try:
+        client   = get_client()
+        response = client.table("risk_results").select(
+            "id, student_id, student_name, module1_score, module2_score, "
+            "module2_label, module3_score, composite_score, risk_level, "
+            "behavior_label, grade_jump, g1, g2, g3, absences, studytime, "
+            "failures, faculty_note, analyzed_at"
+        ).order("analyzed_at", desc=True).execute()
+
+        # normalize keys to uppercase G1 G2 G3 for dashboard compatibility
+        records = []
+        for r in response.data:
+            r["G1"] = r.pop("g1", 0)
+            r["G2"] = r.pop("g2", 0)
+            r["G3"] = r.pop("g3", 0)
+            records.append(r)
+        return records
+    except Exception as e:
+        print(f"Database fetch error: {e}")
+        return []
 
 def get_student_history(student_id):
-    conn   = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT * FROM risk_results
-        WHERE student_id=?
-        ORDER BY analyzed_at DESC
-    """, (student_id,))
-    rows    = cursor.fetchall()
-    columns = [d[0] for d in cursor.description]
-    conn.close()
-    return [dict(zip(columns, row)) for row in rows]
+    try:
+        client   = get_client()
+        response = client.table("risk_results").select("*").eq(
+            "student_id", student_id
+        ).order("analyzed_at", desc=True).execute()
+
+        records = []
+        for r in response.data:
+            r["G1"] = r.pop("g1", 0)
+            r["G2"] = r.pop("g2", 0)
+            r["G3"] = r.pop("g3", 0)
+            records.append(r)
+        return records
+    except Exception as e:
+        print(f"Database fetch error: {e}")
+        return []
 
 def delete_record(record_id):
-    conn   = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM risk_results WHERE id=?", (record_id,))
-    conn.commit()
-    conn.close()
-
-# initialize on import
-init_db()
+    try:
+        client = get_client()
+        client.table("risk_results").delete().eq("id", record_id).execute()
+        return True
+    except Exception as e:
+        print(f"Database delete error: {e}")
+        return False

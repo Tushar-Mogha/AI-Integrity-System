@@ -335,7 +335,7 @@ def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures)
     try:
         save_result(result)
     except Exception as e:
-        pass  # don't break if db fails
+        st.error(f"Database Error: {str(e)}")
 
     return result
 
