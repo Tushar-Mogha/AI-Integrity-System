@@ -16,47 +16,54 @@ def get_client():
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def init_db():
-    # table is already created in Supabase dashboard
-    # this function kept for compatibility
     pass
 
 def save_result(result):
     try:
         client = get_client()
+        # use UTC time for consistency
         record = {
-            "student_id"    : result["student_id"],
-            "student_name"  : result["student_name"],
-            "module1_score" : result["module1_ai_score"],
-            "module2_score" : result["module2_style_score"],
-            "module2_label" : result.get("module2_label", ""),
-            "module3_score" : result["module3_behavior_score"],
-            "composite_score": result["composite_score"],
-            "risk_level"    : result["risk_level"],
-            "behavior_label": result["behavior_label"],
-            "grade_jump"    : result["grade_jump"],
-            "g1"            : result["G1"],
-            "g2"            : result["G2"],
-            "g3"            : result["G3"],
-            "absences"      : result["absences"],
-            "studytime"     : result["studytime"],
-            "failures"      : result["failures"],
-            "essay_text"    : result.get("essay_text", ""),
+            "student_id"    : str(result["student_id"]),
+            "student_name"  : str(result["student_name"]),
+            "module1_score" : float(result["module1_ai_score"]),
+            "module2_score" : float(result["module2_style_score"]),
+            "module2_label" : str(result.get("module2_label", "")),
+            "module3_score" : float(result["module3_behavior_score"]),
+            "composite_score": float(result["composite_score"]),
+            "risk_level"    : str(result["risk_level"]),
+            "behavior_label": str(result["behavior_label"]),
+            "grade_jump"    : float(result["grade_jump"]),
+            "g1"            : int(result["G1"]),
+            "g2"            : int(result["G2"]),
+            "g3"            : int(result["G3"]),
+            "absences"      : int(result["absences"]),
+            "studytime"     : int(result["studytime"]),
+            "failures"      : int(result["failures"]),
+            "essay_text"    : str(result.get("essay_text", "")),
             "faculty_note"  : "",
             "analyzed_at"   : datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
-        client.table("risk_results").insert(record).execute()
-        return True
+        response = client.table("risk_results").insert(record).execute()
+        if response.data:
+            print(f"Saved student: {result['student_name']} with ID: {response.data[0]['id']}")
+            return response.data[0]['id']  # return the new record id
+        return None
     except Exception as e:
         print(f"Database save error: {e}")
-        return False
+        return None
 
 def update_note(record_id, note):
     try:
+        print(f"Updating record ID: {record_id} with note: {note}")  # 👈 ADD
+
         client = get_client()
-        client.table("risk_results").update(
-            {"faculty_note": note}
-        ).eq("id", record_id).execute()
-        return True
+        response = client.table("risk_results").update(
+            {"faculty_note": str(note)}
+        ).eq("id", int(record_id)).execute()
+
+        print(f"Update response: {response.data}")  # 👈 ADD
+
+        return len(response.data) > 0
     except Exception as e:
         print(f"Database update error: {e}")
         return False
@@ -64,14 +71,9 @@ def update_note(record_id, note):
 def get_all_results():
     try:
         client   = get_client()
-        response = client.table("risk_results").select(
-            "id, student_id, student_name, module1_score, module2_score, "
-            "module2_label, module3_score, composite_score, risk_level, "
-            "behavior_label, grade_jump, g1, g2, g3, absences, studytime, "
-            "failures, faculty_note, analyzed_at"
-        ).order("analyzed_at", desc=True).execute()
-
-        # normalize keys to uppercase G1 G2 G3 for dashboard compatibility
+        response = client.table("risk_results").select("*").order(
+            "analyzed_at", desc=True
+        ).execute()
         records = []
         for r in response.data:
             r["G1"] = r.pop("g1", 0)
@@ -87,9 +89,8 @@ def get_student_history(student_id):
     try:
         client   = get_client()
         response = client.table("risk_results").select("*").eq(
-            "student_id", student_id
+            "student_id", str(student_id)
         ).order("analyzed_at", desc=True).execute()
-
         records = []
         for r in response.data:
             r["G1"] = r.pop("g1", 0)
@@ -103,8 +104,10 @@ def get_student_history(student_id):
 
 def delete_record(record_id):
     try:
-        client = get_client()
-        client.table("risk_results").delete().eq("id", record_id).execute()
+        client   = get_client()
+        response = client.table("risk_results").delete().eq(
+            "id", int(record_id)
+        ).execute()
         return True
     except Exception as e:
         print(f"Database delete error: {e}")

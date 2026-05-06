@@ -331,11 +331,14 @@ def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures)
             "Linking Words"     : wf[5]
         }
     }
-    # save to database
+    # save to database and store record id in session
     try:
-        save_result(result)
+        record_id = save_result(result)
+        if record_id:
+            st.session_state[f"record_id_{sid}"] = record_id
+            print(f"Record ID stored in session: {record_id}")
     except Exception as e:
-        st.error(f"Database Error: {str(e)}")
+        print(f"Database Error: {str(e)}")
 
     return result
 
@@ -606,27 +609,39 @@ def show_student_report(result):
     st.markdown("<div class='section-header'>Faculty Notes</div>",
                 unsafe_allow_html=True)
 
-    note_key  = f"note_{result['student_id']}"
-    saved_key = f"saved_{result['student_id']}"
-
     note = st.text_area(
         "Add observations", height=100,
         placeholder="Enter any additional observations...",
-        key=note_key
+        key=f"note_{result['student_id']}"
     )
 
     if st.button("Save Note", key=f"save_btn_{result['student_id']}"):
         if note.strip():
             try:
-                # get latest record id for this student
+                # always fetch latest record directly from DB
                 history = get_student_history(result["student_id"])
+
+                record_id = None
                 if history:
-                    update_note(history[0]["id"], note)
-                    st.success("Note saved successfully!")
+                    record_id = history[0]["id"]
+
+                if record_id:
+                    success = update_note(record_id, note)
+
+                    if success:
+                        st.success("Note saved! View it in the History page.")
+                        st.balloons()
+                        st.rerun()
+                    else:
+                        st.error("Note could not be saved. Try again.")
                 else:
-                    st.warning("No record found to attach note to.")
+                    st.warning("No record found. Analyze the student first.")
+
             except Exception as e:
                 st.error(f"Could not save note: {str(e)}")
+                print(f"Note save error: {e}")
+        else:
+            st.warning("Please write something before saving.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -922,7 +937,9 @@ elif "📜" in page:
                 unsafe_allow_html=True)
 
     try:
-        records = get_all_results()
+        all_records = get_all_results()
+
+        records = all_records
 
         if not records:
             st.info("No records found. Analyze some students first.")
@@ -1040,15 +1057,20 @@ elif "📜" in page:
                         """, unsafe_allow_html=True)
 
                     # show faculty note if exists
-                    if record.get("faculty_note"):
+                    note_value = record.get("faculty_note")
+                    if note_value and note_value.strip():
                         st.markdown(f"""
-                        <div style='background:rgba(201,168,76,0.06);
-                                    border:1px solid #2A3F5F;
-                                    border-left:3px solid #C9A84C;
-                                    border-radius:8px; padding:0.8rem;
-                                    margin-top:0.5rem; font-size:0.85rem;'>
-                        <b style='color:#C9A84C;'>Faculty Note:</b><br>
-                        <span style='color:#8A99B0;'>{record['faculty_note']}</span>
+                        <div style='background:rgba(201,168,76,0.06); border:1px solid #2A3F5F; border-left:3px solid #C9A84C;
+                            border-radius:8px; padding:0.8rem; margin-top:0.5rem; font-size:0.85rem;'>
+                        <b style='color:#C9A84C;'>📝 Faculty Note:</b><br>
+                        <span style='color:#E8E0D0;'>{record['faculty_note']}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown("""
+                        <div style='background:#1B2A4A; border:1px solid #2A3F5F; border-radius:8px; padding:0.6rem 0.8rem;
+                            margin-top:0.5rem; font-size:0.8rem; color:#8A99B0;'>
+                        No faculty note added yet.
                         </div>
                         """, unsafe_allow_html=True)
 

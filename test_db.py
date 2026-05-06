@@ -48,3 +48,18 @@ try:
 
 except Exception as e:
     print("ERROR:", str(e))
+
+# test update note
+from app.database import get_student_history, update_note
+
+history = get_student_history("TEST001")
+print("History found:", len(history), "records")
+if history:
+    print("Record ID:", history[0]["id"])
+    print("ID type:", type(history[0]["id"]))
+    result = update_note(history[0]["id"], "This is a test note")
+    print("Update result:", result)
+
+    # verify
+    history2 = get_student_history("TEST001")
+    print("Note after update:", history2[0].get("faculty_note"))
