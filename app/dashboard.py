@@ -424,7 +424,8 @@ def show_student_report(result):
         [gc1, gc2, gc3],
         ["Module 1 · AI Detection", "Module 2 · Writing Style", "Module 3 · Behavioral"],
         [result["module1_ai_score"], result["module2_style_score"], result["module3_behavior_score"]],
-        ["#3498DB", "#C9A84C", "#27AE60"],["", result.get("module2_label", ""), ""]
+        ["#3498DB", "#C9A84C", "#27AE60"],
+        ["", result.get("module2_label", ""), ""]
     ):
         with col:
             fig = go.Figure(go.Indicator(
@@ -441,14 +442,31 @@ def show_student_report(result):
                         {"range":[40,70],"color":"rgba(243,156,18,0.08)"},
                         {"range":[70,100],"color":"rgba(231,76,60,0.08)"},
                     ],
-                    "threshold":{"line":{"color":"#E74C3C","width":2},"thickness":0.75,"value":70}
+                    "threshold":{"line":{"color":"#E74C3C","width":2},
+                                 "thickness":0.75,"value":70}
                 },
-                title={"text":f"<b>{mod}</b>{'<br><span style=\"font-size:0.8em\">' + extra_label + '</span>' if extra_label else ''}",
-                "font":{"size":12,"color":"#E8E0D0"}}
+                title={"text":f"<b>{mod}</b>","font":{"size":12,"color":"#E8E0D0"}}
             ))
-            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)",
-                              margin=dict(l=10,r=10,t=30,b=10), height=220,font=dict(color="#E8E0D0"))
+            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)",
+                              plot_bgcolor="rgba(0,0,0,0)",
+                              margin=dict(l=10,r=10,t=30,b=10), height=220,
+                              font=dict(color="#E8E0D0"))
             st.plotly_chart(fig, use_container_width=True)
+
+            # show Module 2 label as colored badge below gauge
+            if extra_label:
+                badge_color = "#E74C3C" if extra_label == "AI Generated" else "#27AE60"
+                badge_icon  = "🤖" if extra_label == "AI Generated" else "✍️"
+                st.markdown(f"""
+                <div style='text-align:center; margin-top:-1rem; margin-bottom:0.5rem;'>
+                    <span style='background:{badge_color}22; border:1px solid {badge_color};
+                                 color:{badge_color}; border-radius:20px;
+                                 padding:0.4rem 1.2rem; font-size:1rem;
+                                 font-weight:700; letter-spacing:0.5px;'>
+                        {badge_icon} {extra_label}
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
 
     # Grade chart + behavioral summary
     st.markdown("<div class='section-header'>Grade Pattern Analysis</div>",
@@ -544,12 +562,14 @@ def show_student_report(result):
             os.makedirs("outputs", exist_ok=True)
             shap_path = f"outputs/shap_{result['student_id']}.png"
 
-            with st.spinner("Generating SHAP explanation..."):
-                generate_shap_plot(
-                    essay       = essay_text,
-                    student_name= result["student_name"],
-                    save_path   = shap_path
-                )
+            # only regenerate if not already saved
+            if not os.path.exists(shap_path):
+                with st.spinner("Generating SHAP explanation..."):
+                    generate_shap_plot(
+                        essay       = essay_text,
+                        student_name= result["student_name"],
+                        save_path   = shap_path
+                    )
 
             if os.path.exists(shap_path):
                 st.image(shap_path, width=700)
