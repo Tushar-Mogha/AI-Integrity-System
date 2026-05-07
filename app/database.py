@@ -5,6 +5,7 @@
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+from datetime import datetime, timezone
 
 load_dotenv()
 
@@ -42,7 +43,7 @@ def save_result(result):
             "failures"      : int(result["failures"]),
             "essay_text"    : str(result.get("essay_text", "")),
             "faculty_note"  : "",
-            "analyzed_at"   : datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "analyzed_at"   : datetime.now(timezone.utc).isoformat()
         }
         response = client.table("risk_results").insert(record).execute()
         if response.data:

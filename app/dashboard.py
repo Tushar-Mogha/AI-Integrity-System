@@ -19,6 +19,7 @@ import scipy.sparse as sp
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from modules.module4_explainability import generate_shap_plot, get_text_explanation
 from app.database import save_result, get_all_results, get_student_history, update_note, delete_record
+from datetime import datetime, timedelta, timezone
 
 
 # ── Page Config ───────────────────────────────────────────────────────────────
@@ -1041,9 +1042,17 @@ elif "📜" in page:
                 emoji  = {"High Risk":"🔴","Medium Risk":"🟡",
                           "Low Risk":"🟢"}.get(record["risk_level"],"⚪")
 
+                # Convert UTC → IST
+                try:
+                    utc_time = datetime.fromisoformat(record["analyzed_at"].replace("Z", "+00:00"))
+                    ist_time = utc_time + timedelta(hours=5, minutes=30)
+                    display_time = ist_time.strftime("%Y-%m-%d %H:%M:%S")
+                except:
+                    display_time = record["analyzed_at"]      
+
                 with st.expander(
                     f"{emoji} {record['student_name']} ({record['student_id']}) "
-                    f"— {record['risk_level']} — {record['analyzed_at']}"
+                    f"— {record['risk_level']} — {display_time}"
                 ):
                     dc1, dc2, dc3, dc4 = st.columns(4)
                     for col, val, lbl, clr in zip(
