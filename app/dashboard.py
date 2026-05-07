@@ -594,17 +594,18 @@ def show_student_report(result):
             os.makedirs("outputs", exist_ok=True)
             shap_path = f"outputs/shap_{result['student_id']}.png"
 
-            # only regenerate if not already saved
-            if not os.path.exists(shap_path):
-                with st.spinner("Generating SHAP explanation..."):
-                    generate_shap_plot(
-                        essay       = essay_text,
-                        student_name= result["student_name"],
-                        save_path   = shap_path
-                    )
+            # always regenerate
+            with st.spinner("Generating SHAP explanation..."):
+                generate_shap_plot(
+                    essay        = essay_text,
+                    student_name = result["student_name"],
+                    save_path    = shap_path
+                )
 
             if os.path.exists(shap_path):
                 st.image(shap_path, width=700)
+            else:
+                st.warning("SHAP plot could not be generated.")
 
             st.markdown("<b style='color:#C9A84C;'>Feature Impact Explanation:</b>",
                         unsafe_allow_html=True)
