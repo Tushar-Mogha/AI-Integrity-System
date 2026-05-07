@@ -54,13 +54,12 @@ def get_writing_features(essay):
     paragraphs = [p.strip() for p in essay.split('\n') if len(p.strip()) > 10]
 
     # linking words are used more in AI writing
-    linking = [
-        'however', 'therefore', 'moreover', 'furthermore',
-        'although', 'nevertheless', 'consequently', 'additionally',
-        'meanwhile', 'otherwise', 'similarly', 'thus'
-    ]
+    linking = [ 'however', 'therefore', 'moreover', 'furthermore', 'although', 'nevertheless', 'consequently', 'additionally', 'meanwhile', 'otherwise', 
+    'similarly', 'thus', 'hence', 'accordingly', 'in addition', 'as a result', 'on the other hand', 'for instance', 'for example', 'in conclusion', 
+    'to conclude', 'overall', 'in summary']
+
     all_words = essay.lower().split()
-    linking_count = sum(1 for w in linking if w in all_words)
+    linking_count = sum(essay.lower().count(w) for w in linking)
 
     # count only meaningful punctuation marks
     meaningful = set('.,!?;:')
@@ -227,11 +226,8 @@ def is_gibberish(text):
 
 
 def has_human_tone(text):
-    patterns = [
-        "i think", "i feel", "i believe",
-        "in my opinion", "i guess", "maybe",
-        "honestly", "personally", "i mean"
-    ]
+    patterns = [ "i think", "i feel", "i believe", "in my opinion", "i guess", "maybe", "honestly", "personally", "i mean", "i dont think", "i don't think", 
+    "i am not sure", "im not sure", "kind of", "kinda", "sort of", "i guess so", "to be honest", "as far as i know", "from what i know"]
     text = text.lower()
     return any(p in text for p in patterns)
 
