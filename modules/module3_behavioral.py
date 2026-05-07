@@ -69,7 +69,7 @@ df['avg_score'] = (df['G1'] + df['G2']) / 2      # overall level of student
 grade_jump = df['G3'] - df['baseline']
 
 df['anomaly'] = (
-    (grade_jump >= 2) |
+    (abs(grade_jump) >= 3.5) |
     (df['absences'] > 10) |
     (df['failures'] > 1)
 ).astype(int)
@@ -166,60 +166,88 @@ print("\nModule 3 done!")
 # -------------------------------
 
 def predict_anomaly(G1, G2, G3, absences, studytime, failures):
-    # calculate baseline and behavior indicators
+
+    # -----------------------------
+    # Step 1: Compute behavioral features
+    # -----------------------------
     baseline = (G1 + G2) / 2
     grade_jump = G3 - baseline
-    grade_consistency = abs(G1 - G2)
+    jump_abs = abs(grade_jump)
+
     trend = G2 - G1
     consistency = abs(G1 - G2)
-    avg_score = (G1 + G2) / 2
+    avg_score = baseline
 
-    # model only sees historical features
-    features_input = [[G1, G2, trend, consistency, avg_score,absences, studytime, failures]]
+    # -----------------------------
+    # Step 2: Model prediction (support only)
+    # -----------------------------
+    features_input = [[G1, G2, trend, consistency, avg_score, absences, studytime, failures]]
     scaled = scaler.transform(features_input)
 
     prob = model.predict_proba(scaled)[0]
-    anomaly_prob = prob[1]
+    model_anomaly_prob = prob[1]
 
-    # step 1: handle extreme cases FIRST
-    if grade_jump >= 6:
+    # -----------------------------
+    # Step 3: RULE-BASED CORE LOGIC (PRIMARY)
+    # -----------------------------
+
+    # Strong anomaly (extreme jump/dip)
+    if jump_abs > 6:
         label = "Anomaly"
+        final_prob = max(model_anomaly_prob, 0.90)
 
-    elif grade_jump >= 4:
+    # Moderate anomaly (beyond threshold)
+    elif jump_abs >= 3.5:
         label = "Anomaly"
-    
-    elif grade_jump <= -5:
+        final_prob = max(model_anomaly_prob, 0.70)
+
+    # Behavior-based anomaly
+    elif absences > 10 or failures > 1:
         label = "Anomaly"
+        final_prob = max(model_anomaly_prob, 0.75)
 
-    # step 2: model decision
-    elif anomaly_prob >= 0.40:
+    # Consistency anomaly (sudden change after stable past)
+    elif consistency <= 2 and jump_abs > 3:
         label = "Anomaly"
+        final_prob = max(model_anomaly_prob, 0.65)
 
-    elif anomaly_prob <= 0.25:
-        label = "Normal"
-
-    # step 3: rules
+    # Normal gradual change
     else:
-        if grade_jump >= 3:
-            label = "Anomaly"
+        label = "Normal"
+        final_prob = min(model_anomaly_prob, 0.30)
+    
+    # -----------------------------
+    # Step 3.5: Explanation (reason)
+    # -----------------------------
 
-        elif grade_jump <= -4 and (failures > 0 or absences > 6):
-            label = "Anomaly"
+    reason = ""
 
-        elif grade_consistency >= 6 and grade_jump > 2:
-            label = "Anomaly"
+    if absences > 10:
+        reason = "High absences with performance spike"
 
-        elif failures > 0 or absences > 8:
-            label = "Anomaly"
+    elif failures > 1:
+        reason = "Failures with inconsistent performance"
 
-        else:
-            label = "Normal"
+    elif jump_abs > 6:
+        reason = "Extreme grade jump detected"
+
+    elif jump_abs > 3.5:
+        reason = "Significant deviation from baseline"
+
+    else:
+        reason = "Performance within expected range"
+
+    # -----------------------------
+    # Step 4: Final probability cleanup
+    # -----------------------------
+    final_prob = round(final_prob * 100, 2)
 
     return {
         'prediction': label,
-        'anomaly_probability': round(anomaly_prob * 100, 2),
-        'normal_probability': round(prob[0] * 100, 2),
-        'grade_jump': round(grade_jump, 2)
+        'anomaly_probability': float(final_prob),
+        'normal_probability': float(round(100 - final_prob, 2)),
+        'grade_jump': round(grade_jump, 2),
+        'reason': reason
     }
 
 #testing with sample students

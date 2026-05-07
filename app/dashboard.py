@@ -230,10 +230,10 @@ def predict_module2(text):
 def predict_module3(G1, G2, G3, absences, studytime, failures):
     baseline = (G1 + G2) / 2
     grade_jump = G3 - baseline
+    jump_abs = abs(grade_jump)
     trend = G2 - G1
     consistency = abs(G1 - G2)
     avg_score = (G1 + G2) / 2
-
     features = [[
         G1, G2,
         trend,
@@ -246,45 +246,52 @@ def predict_module3(G1, G2, G3, absences, studytime, failures):
 
     scaled = m3_scaler.transform(features)
     prob = m3_model.predict_proba(scaled)[0]
-    anomaly_prob = prob[1]
+    model_anomaly_prob = prob[1]
 
-    # step 1: extreme jump
-    if grade_jump >= 6:
+    # -----------------------------
+    # RULE LOGIC
+    # -----------------------------
+    if jump_abs > 6:
         label = "Anomaly"
+        final_prob = max(model_anomaly_prob, 0.90)
 
-    # step 2: strong jump
-    elif grade_jump >= 4:
+    elif jump_abs >= 3.5:
         label = "Anomaly"
+        final_prob = max(model_anomaly_prob, 0.70)
 
-    # step 3: extreme decline
-    elif grade_jump <= -5:
+    elif absences > 10 or failures > 1:
         label = "Anomaly"
+        final_prob = max(model_anomaly_prob, 0.75)
 
-    # step 4: model decision
-    elif anomaly_prob >= 0.40:
+    elif consistency <= 2 and jump_abs > 3:
         label = "Anomaly"
+        final_prob = max(model_anomaly_prob, 0.65)
 
-    elif anomaly_prob <= 0.25:
-        label = "Normal"
-
-    # step 5: fallback
     else:
-        if grade_jump >= 3:
-            label = "Anomaly"
+        label = "Normal"
+        final_prob = min(model_anomaly_prob, 0.30)
 
-        elif grade_jump <= -4 and (failures > 0 or absences > 6):
-            label = "Anomaly"
+    # -----------------------------
+    # REASON 
+    # -----------------------------
+    if absences > 10:
+        reason = "High absences with performance spike"
 
-        elif consistency >= 6 and grade_jump > 2:
-            label = "Anomaly"
+    elif failures > 1:
+        reason = "Failures with inconsistent performance"
 
-        elif failures > 0 or absences > 8:
-            label = "Anomaly"
+    elif jump_abs > 6:
+        reason = "Extreme grade jump detected"
 
-        else:
-            label = "Normal"
+    elif jump_abs >= 3.5:
+        reason = "Significant deviation from baseline"
 
-    return round(anomaly_prob * 100, 2), label, round(grade_jump, 2)
+    else:
+        reason = "Performance within expected range"
+
+    final_prob = round(final_prob * 100, 2)
+
+    return final_prob, label, round(grade_jump, 2), reason
 
 def get_risk(composite):
     if composite >= 70:   return "High Risk"
@@ -297,7 +304,7 @@ def risk_color(risk):
 def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures):
     m1 = predict_module1(essay)
     m2, m2_label = predict_module2(essay)
-    m3, beh_label, grade_jump = predict_module3(
+    m3, beh_label, grade_jump, m3_reason = predict_module3(
         G1, G2, G3, absences, studytime, failures)
     if beh_label == "Anomaly":
         composite = (0.35 * m1) + (0.35 * m2) + (0.30 * m3)
@@ -314,6 +321,7 @@ def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures)
         "module2_label"         : m2_label,
         "module3_behavior_score": m3,
         "behavior_label"        : beh_label,
+        "module3_reason"        : m3_reason,
         "composite_score"       : round(composite, 2),
         "risk_level"            : risk,
         "grade_jump"            : grade_jump,
@@ -505,6 +513,10 @@ def show_student_report(result):
     with pc2:
         jc = "#E74C3C" if result["grade_jump"] > 5 else "#27AE60"
         bc = "#E74C3C" if anomaly else "#27AE60"
+        if result["behavior_label"] == "Anomaly":
+            reason_color = "#FF6B6B"
+        else:
+            reason_color = "#6BCB77"
         st.markdown(f"""
         <div style='background:#1B2A4A; border:1px solid #2A3F5F; border-left:3px solid #C9A84C;
                     border-radius:12px; padding:1.2rem; height:100%;'>
@@ -512,10 +524,14 @@ def show_student_report(result):
         <div style='font-size:1.3rem; font-weight:700; color:#E8E0D0;'>{result['baseline']}</div>
         <br>
         <div style='font-size:0.8rem; color:#8A99B0;'>Grade Jump</div>
-        <div style='font-size:1.3rem; font-weight:700; color:{jc};'>+{result['grade_jump']}</div>
+        <div style='font-size:1.3rem; font-weight:700; color:{jc};'>{result['grade_jump']}</div>
         <br>
         <div style='font-size:0.8rem; color:#8A99B0;'>Behavior Label</div>
         <div style='font-weight:700; color:{bc};'>{result['behavior_label']}</div>
+        <div style='font-size:0.8rem; color:#8A99B0; margin-top:0.4rem;'>Reason</div>
+        <div style='color:{reason_color}; font-size:0.85rem; font-weight:600;'>
+        {result.get("module3_reason", "N/A")}
+        </div>
         <br>
         <div style='font-size:0.8rem; color:#8A99B0;'>
         Absences: <b style='color:#E8E0D0;'>{result['absences']}</b> &nbsp;|&nbsp;
@@ -602,7 +618,7 @@ def show_student_report(result):
     if result["module2_style_score"] > 70:
         reasons.append(f"Writing style shows AI-like patterns with {result['module2_style_score']}% confidence")
     if result["behavior_label"] == "Anomaly":
-        reasons.append(f"Grade jumped {result['grade_jump']} points above expected baseline of {result['baseline']}")
+        reasons.append(f"Behavioral anomaly detected: {result['module3_reason']}")
     if result["failures"] > 0:
         reasons.append(f"Student has {result['failures']} past failure(s) — high final grade is suspicious")
     if result["absences"] > 8:
@@ -1060,7 +1076,8 @@ elif "📜" in page:
                         G3: <b style='color:#E8E0D0;'>{record['G3']}</b><br>
                         Grade Jump: <b style='color:#E8E0D0;'>{record['grade_jump']}</b><br>
                         Behavior: <b style='color:{"#E74C3C" if record["behavior_label"]=="Anomaly" else "#27AE60"};'>
-                        {record['behavior_label']}</b>
+                        {record['behavior_label']}</b><br>
+                        Reason: <span style='color:#C9A84C;'>{record.get("module3_reason", "N/A")}</span>
                         </span>
                         </div>
                         """, unsafe_allow_html=True)
@@ -1123,7 +1140,7 @@ elif "📜" in page:
             hist_df = pd.DataFrame(filtered)
             if not hist_df.empty:
                 cols_to_show = ["student_id","student_name","composite_score",
-                                "risk_level","behavior_label","module2_label",
+                                "risk_level","behavior_label","module3_reason","module2_label",
                                 "G1","G2","G3","grade_jump",
                                 "absences","failures","faculty_note","analyzed_at"]
                 hist_df = hist_df[[c for c in cols_to_show if c in hist_df.columns]]

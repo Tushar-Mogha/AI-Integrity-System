@@ -32,6 +32,7 @@ def save_result(result):
             "composite_score": float(result["composite_score"]),
             "risk_level"    : str(result["risk_level"]),
             "behavior_label": str(result["behavior_label"]),
+            "module3_reason": result.get("module3_reason", ""),
             "grade_jump"    : float(result["grade_jump"]),
             "g1"            : int(result["G1"]),
             "g2"            : int(result["G2"]),
