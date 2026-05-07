@@ -195,9 +195,13 @@ def predict_anomaly(G1, G2, G3, absences, studytime, failures):
     if jump_abs > 6:
         label = "Anomaly"
         final_prob = max(model_anomaly_prob, 0.90)
+    
+    elif consistency >= 5 and jump_abs >= 4:
+        label = "Anomaly"
+        final_prob = max(model_anomaly_prob, 0.75)
 
     # Moderate anomaly (beyond threshold)
-    elif jump_abs >= 3.5:
+    elif jump_abs >= 3.5 and consistency <= 1:
         label = "Anomaly"
         final_prob = max(model_anomaly_prob, 0.70)
 
@@ -206,10 +210,10 @@ def predict_anomaly(G1, G2, G3, absences, studytime, failures):
         label = "Anomaly"
         final_prob = max(model_anomaly_prob, 0.75)
 
-    # Consistency anomaly (sudden change after stable past)
-    elif consistency <= 2 and jump_abs > 3:
-        label = "Anomaly"
-        final_prob = max(model_anomaly_prob, 0.65)
+    # # Consistency anomaly (sudden change after stable past)
+    # elif consistency <= 2 and 3 < jump_abs < 3.5:
+    #     label = "Anomaly"
+    #     final_prob = max(model_anomaly_prob, 0.60)
 
     # Normal gradual change
     else:
@@ -220,19 +224,28 @@ def predict_anomaly(G1, G2, G3, absences, studytime, failures):
     # Step 3.5: Explanation (reason)
     # -----------------------------
 
-    reason = ""
+    if label == "Anomaly":
 
-    if absences > 10:
-        reason = "High absences with performance spike"
+        if grade_jump > 6:
+            reason = "Extreme increase in performance detected"
 
-    elif failures > 1:
-        reason = "Failures with inconsistent performance"
+        elif grade_jump < -6:
+            reason = "Extreme decrease in performance detected"
+        
+        elif consistency >= 5 and jump_abs >= 4:
+            reason = "High fluctuation in performance detected"
 
-    elif jump_abs > 6:
-        reason = "Extreme grade jump detected"
+        elif abs(grade_jump) >= 3.5:
+            reason = "Significant deviation from baseline"
 
-    elif jump_abs > 3.5:
-        reason = "Significant deviation from baseline"
+        elif absences > 10:
+            reason = "High absences with unusual performance"
+
+        elif failures > 1:
+            reason = "Failures with inconsistent performance"
+
+        else:
+            reason = "Unusual performance pattern detected"
 
     else:
         reason = "Performance within expected range"
@@ -250,97 +263,61 @@ def predict_anomaly(G1, G2, G3, absences, studytime, failures):
         'reason': reason
     }
 
-#testing with sample students
-print("\n── Sample Predictions ──────────────────────────────")
+print("\n── Structured Behavior Testing (Module 3) ─────────────────────────────")
 
-print("\nNormal Student (G1=12, G2=13, G3=14):")
-print(predict_anomaly(12, 13, 14, 3, 2, 0))
+print(f"{'Scenario':<45} {'G1':>4} {'G2':>4} {'G3':>4} {'Jump':>6} {'Anom%':>8} {'Label':<10} {'Reason'}")
+print("-" * 115)
 
-print("\nSuspicious Student (G1=8, G2=7, G3=18):")
-print(predict_anomaly(8, 7, 18, 1, 2, 0))
+test_cases = [
 
-print("\nAnother Normal Student (G1=15, G2=15, G3=16):")
-print(predict_anomaly(15, 15, 16, 2, 3, 0))
+    # ─────────── CONSISTENT PERFORMANCE ───────────
+    ("Consistent average",              12, 12, 12, 3, 2, 0),
+    ("Consistent high",                 18, 18, 18, 1, 3, 0),
+    ("Consistent low",                   5,  5,  5, 4, 1, 1),
 
-print("\nNormal Student (G1=10, G2=11, G3=12):")
-print(predict_anomaly(10, 11, 12, 2, 2, 0))
+    # ─────────── GRADUAL INCREASE ───────────
+    ("Gradual increase small",          10, 11, 12, 2, 2, 0),
+    ("Gradual increase moderate",        8, 10, 13, 3, 2, 0),
+    ("Gradual increase near threshold", 10, 11, 13.4, 2, 2, 0),
 
-print("\nConsistent Student (G1=15, G2=15, G3=15):")
-print(predict_anomaly(15, 15, 15, 1, 3, 0))
+    # ─────────── GRADUAL DECREASE ───────────
+    ("Gradual decrease small",          14, 13, 12, 2, 2, 0),
+    ("Gradual decrease moderate",       16, 14, 12, 3, 2, 0),
+    ("Gradual decrease near threshold", 15, 14, 11.6, 2, 2, 0),
 
-print("\nSlight Increase (G1=12, G2=13, G3=15):")
-print(predict_anomaly(12, 13, 15, 3, 2, 0))
+    # ─────────── SUDDEN INCREASE ───────────
+    ("Sudden jump (clear anomaly)",      8,  7, 18, 1, 2, 0),
+    ("Weak → topper",                   5,  5, 19, 0, 3, 0),
+    ("Average → very high",            10, 10, 18, 2, 2, 0),
 
-print("\nSlight Drop (G1=14, G2=13, G3=12):")
-print(predict_anomaly(14, 13, 12, 2, 2, 0))
+    # ─────────── SUDDEN DECREASE ───────────
+    ("Sudden drop (clear anomaly)",     18, 17,  6, 2, 2, 0),
+    ("Topper → low",                    20, 20,  8, 3, 2, 0),
+    ("Moderate → very low",             15, 14,  5, 3, 2, 0),
 
-print("\nSudden Jump (G1=8, G2=7, G3=18):")
-print(predict_anomaly(8, 7, 18, 1, 2, 0))
+    # ─────────── FLUCTUATIONS ───────────
+    ("Zigzag (high-low-high)",          18,  6, 17, 4, 2, 0),
+    ("Zigzag (low-high-low)",            5, 17,  6, 3, 2, 0),
+    ("Inconsistent pattern",            14,  9, 15, 5, 2, 1),
 
-print("\nWeak to Topper (G1=6, G2=5, G3=17):")
-print(predict_anomaly(6, 5, 17, 0, 3, 0))
+    # ─────────── THRESHOLD EDGE CASES ───────────
+    ("Exactly +3.5 threshold",          10, 10, 13.5, 2, 2, 0),
+    ("Exactly -3.5 threshold",          15, 15, 11.5, 2, 2, 0),
+    ("Just below +3.5",                 10, 10, 13.4, 2, 2, 0),
+    ("Just below -3.5",                 15, 15, 11.6, 2, 2, 0),
 
-print("\nHigh Absence but High Marks (G1=10, G2=10, G3=18):")
-print(predict_anomaly(10, 10, 18, 15, 1, 0))
+    # ─────────── MIXED REALISTIC CASES ───────────
+    ("Gradual → sudden jump",           10, 12, 18, 2, 2, 0),
+    ("Stable → sudden drop",            14, 14,  7, 3, 2, 0),
+    ("Increase → plateau",              10, 12, 12, 2, 2, 0),
+    ("Decrease → recovery",             15, 12, 14, 2, 2, 0),
+]
 
-print("\nFailures but High G3 (G1=7, G2=6, G3=16):")
-print(predict_anomaly(7, 6, 16, 3, 2, 2))
+for desc, G1, G2, G3, absences, studytime, failures in test_cases:
+    result = predict_anomaly(G1, G2, G3, absences, studytime, failures)
 
-print("\nBorderline Jump (G1=10, G2=10, G3=14):")
-print(predict_anomaly(10, 10, 14, 2, 2, 0))
-
-print("\nModerate Jump (G1=11, G2=10, G3=15):")
-print(predict_anomaly(11, 10, 15, 3, 2, 0))
-
-# ── Thorough Testing ──────────────────────────────────────────────────────────
-# print("\n── Thorough Module 3 Testing ───────────────────────────────────────")
-# print(f"{'Scenario':<35} {'G1':>4} {'G2':>4} {'G3':>4} {'Jump':>6} {'Anomaly%':>9} {'Label':<10}")
-# print("-" * 80)
-
-# scenarios = [
-#     # (description, G1, G2, G3, absences, studytime, failures)
-
-#     # Consistent performance
-#     ("Consistent average",          10, 10, 10, 3, 2, 0),
-#     ("Consistent high performer",   17, 18, 18, 1, 4, 0),
-#     ("Consistent low performer",     5,  6,  5, 8, 1, 1),
-
-#     # Gradual improvement
-#     ("Gradual improvement",         10, 12, 14, 2, 3, 0),
-#     ("Slow steady climb",            8,  9, 11, 3, 2, 0),
-
-#     # Gradual decline
-#     ("Gradual decline",             15, 13, 11, 4, 2, 0),
-#     ("Sharp decline",               16, 14,  8, 6, 1, 0),
-
-#     # Sudden suspicious jumps
-#     ("Weak to topper sudden",        5,  4, 18, 1, 2, 0),
-#     ("Below avg to excellent",       8,  7, 17, 0, 1, 0),
-#     ("Average to perfect",          10, 10, 20, 2, 2, 0),
-
-#     # High fluctuations
-#     ("High then low then high",     18,  6, 19, 5, 2, 0),
-#     ("Low then high then low",       5, 17,  4, 3, 2, 0),
-#     ("Zigzag pattern",              13, 12 , 6, 5, 2, 4),
-
-#     # Borderline cases
-#     ("Borderline jump",             10, 10, 14, 2, 2, 0),
-#     ("Slight improvement",          12, 13, 15, 2, 3, 0),
-#     ("Very slight improvement",     14, 14, 15, 1, 3, 0),
-
-#     # With absences and failures
-#     ("Jump + high absences",         8,  7, 17, 15, 1, 0),
-#     ("Jump + failures",              7,  6, 16,  3, 2, 2),
-#     ("Jump + absences + failures",   6,  5, 18, 12, 1, 1),
-
-#     # Perfect scores
-#     ("Already perfect stays",       20, 20, 20,  0, 4, 0),
-#     ("Perfect then drops",          20, 20,  8,  8, 1, 0),
-# ]
-
-# for desc, G1, G2, G3, absences, studytime, failures in scenarios:
-#     result     = predict_anomaly(G1, G2, G3, absences, studytime, failures)
-#     grade_jump = result['grade_jump']
-#     anomaly_p  = result['anomaly_probability']
-#     label      = result['prediction']
-#     print(f"{desc:<35} {G1:>4} {G2:>4} {G3:>4} {grade_jump:>6.1f} {anomaly_p:>8.1f}% {label:<10}")
+    print(f"{desc:<45} {G1:>4} {G2:>4} {G3:>4} "
+          f"{result['grade_jump']:>6.1f} "
+          f"{result['anomaly_probability']:>7.1f}% "
+          f"{result['prediction']:<10} "
+          f"{result['reason']}")

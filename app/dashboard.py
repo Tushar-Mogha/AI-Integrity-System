@@ -255,8 +255,12 @@ def predict_module3(G1, G2, G3, absences, studytime, failures):
     if jump_abs > 6:
         label = "Anomaly"
         final_prob = max(model_anomaly_prob, 0.90)
+    
+    elif consistency >= 5 and jump_abs >= 4:
+        label = "Anomaly"
+        final_prob = max(model_anomaly_prob, 0.75)
 
-    elif jump_abs >= 3.5:
+    elif jump_abs >= 3.5 and consistency <= 1:
         label = "Anomaly"
         final_prob = max(model_anomaly_prob, 0.70)
 
@@ -264,9 +268,9 @@ def predict_module3(G1, G2, G3, absences, studytime, failures):
         label = "Anomaly"
         final_prob = max(model_anomaly_prob, 0.75)
 
-    elif consistency <= 2 and jump_abs > 3:
-        label = "Anomaly"
-        final_prob = max(model_anomaly_prob, 0.65)
+    # elif consistency <= 2 and 3 < jump_abs < 3.5:
+    #     label = "Anomaly"
+    #     final_prob = max(model_anomaly_prob, 0.60)
 
     else:
         label = "Normal"
@@ -275,17 +279,28 @@ def predict_module3(G1, G2, G3, absences, studytime, failures):
     # -----------------------------
     # REASON 
     # -----------------------------
-    if absences > 10:
-        reason = "High absences with performance spike"
+    if label == "Anomaly":
 
-    elif failures > 1:
-        reason = "Failures with inconsistent performance"
+        if grade_jump > 6:
+            reason = "Extreme increase in performance detected"
 
-    elif jump_abs > 6:
-        reason = "Extreme grade jump detected"
+        elif grade_jump < -6:
+            reason = "Extreme decrease in performance detected"
+        
+        elif consistency >= 5 and jump_abs >= 4:
+            reason = "High fluctuation in performance detected"
 
-    elif jump_abs >= 3.5:
-        reason = "Significant deviation from baseline"
+        elif abs(grade_jump) >= 3.5:
+            reason = "Significant deviation from baseline"
+
+        elif absences > 10:
+            reason = "High absences with unusual performance"
+
+        elif failures > 1:
+            reason = "Failures with inconsistent performance"
+
+        else:
+            reason = "Unusual performance pattern detected"
 
     else:
         reason = "Performance within expected range"
