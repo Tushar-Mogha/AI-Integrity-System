@@ -186,7 +186,7 @@ model_loaded  = pickle.load(open('models/module2_model.pkl', 'rb'))
 scaler_loaded = pickle.load(open('models/module2_scaler.pkl', 'rb'))
 tfidf_loaded  = pickle.load(open('models/module2_tfidf.pkl', 'rb'))
 
-casual_human_1 = "i think this topic is kinda confusing like i tried to understand it but honestly it still doesnt make full sense to me and maybe im missing something but yeah its not very clear"
+casual_human_1 = "i think this topic is kinda confusing like i tried to understand it but honestly it still doesnt make full sense to me and maybe in missing something but yeah its not very clear"
 casual_human_2 = "today in class we learned about this thing but i didnt really get it properly because teacher was going fast and i was also tired so yeah not sure what exactly happened"
 structured_ai_style_1 = "Artificial intelligence has significantly transformed modern computational systems by enabling data-driven decision-making processes across various domains, including healthcare, education, and finance."
 structured_ai_style_2 = "The rapid advancement of machine learning algorithms has facilitated improved predictive modeling capabilities, thereby enhancing efficiency and accuracy in numerous real-world applications."
