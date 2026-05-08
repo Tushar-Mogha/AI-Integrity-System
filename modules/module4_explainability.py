@@ -116,7 +116,7 @@ def generate_shap_plot(essay, student_name="Student", save_path=None):
         )[0][1]
         importances.append(base_prob - modified_prob)
 
-    # create plot
+    # creating plot
     fig, ax = plt.subplots(figsize=(8, 5))
     fig.patch.set_facecolor('#0F1923')
     ax.set_facecolor('#1B2A4A')

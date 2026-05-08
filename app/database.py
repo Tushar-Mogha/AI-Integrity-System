@@ -22,7 +22,7 @@ def init_db():
 def save_result(result):
     try:
         client = get_client()
-        # use UTC time for consistency
+        # using UTC time for consistency
         record = {
             "student_id"    : str(result["student_id"]),
             "student_name"  : str(result["student_name"]),
@@ -51,7 +51,7 @@ def save_result(result):
         response = client.table("risk_results").insert(record).execute()
         if response.data:
             print(f"Saved student: {result['student_name']} with ID: {response.data[0]['id']}")
-            return response.data[0]['id']  # return the new record id
+            return response.data[0]['id']  # returning the new record id
         return None
     except Exception as e:
         print(f"Database save error: {e}")
@@ -59,14 +59,14 @@ def save_result(result):
 
 def update_note(record_id, note):
     try:
-        print(f"Updating record ID: {record_id} with note: {note}")  # 👈 ADD
+        print(f"Updating record ID: {record_id} with note: {note}")
 
         client = get_client()
         response = client.table("risk_results").update(
             {"faculty_note": str(note)}
         ).eq("id", int(record_id)).execute()
 
-        print(f"Update response: {response.data}")  # 👈 ADD
+        print(f"Update response: {response.data}") 
 
         return len(response.data) > 0
     except Exception as e:
