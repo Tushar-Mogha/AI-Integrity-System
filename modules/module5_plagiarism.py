@@ -7,7 +7,7 @@ def check_plagiarism(current_essay, past_records, threshold=0.8):
     student_ids = []
 
     for r in past_records:
-        if r.get("essay_text") and str(r.get("student_id")) != str(current_student_id):
+        if r.get("essay_text"):
             essays.append(r["essay_text"])
             student_ids.append(r["student_id"])
 
