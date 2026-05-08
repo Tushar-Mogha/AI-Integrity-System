@@ -1,7 +1,7 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-def check_plagiarism(current_essay, past_records, current_student_id, threshold=0.8):
+def check_plagiarism(current_essay, past_records, threshold=0.8):
 
     essays = []
     student_ids = []
