@@ -418,15 +418,22 @@ with st.sidebar:
     )
 
     st.markdown("""
-    <div style='margin-top:2rem; font-size:0.75rem; color:#8A99B0;'>
-    <b style='color:#C9A84C;'>Risk Levels</b><br>
-    🔴 High Risk  ≥ 70<br>
-    🟡 Medium Risk ≥ 55<br>
-    🟢 Low Risk   &lt; 55<br><br>
-    <b style='color:#C9A84C;'>Modules</b><br>
-    M1 · RoBERTa AI Detection<br>
-    M2 · Writing Style Analysis<br>
-    M3 · Behavioral Anomaly<br><br>
+    <div style='margin-top:1rem;
+                font-size:0.75rem; color:#8A99B0;'>
+    <b style='color:#C9A84C; font-size:0.8rem;'>Risk Levels</b><br>
+    <span style='color:#FF6B6B;'>🔴 High Risk</span> ≥ 70<br>
+    <span style='color:#FFB347;'>🟡 Medium Risk</span> ≥ 55<br>
+    <span style='color:#6BCB77;'>🟢 Low Risk</span> &lt; 55
+    
+    <br><br>
+    <b style='color:#C9A84C;'>System Modules</b><br>
+    🧠 M1 · RoBERTa AI Detection<br>
+    ✍️ M2 · Writing Style Analysis<br>
+    📈 M3 · Behavioral Anomaly<br>
+    🔍 M4 · Explainable AI (SHAP)<br>
+    📄 M5 · Peer Plagiarism Detection
+
+    <br><br>
     <b style='color:#C9A84C;'>Team</b><br>
     Abhinandan Kumar<br>
     Tushar Mogha<br>
@@ -779,7 +786,7 @@ if "🏠" in page:
     <div class='header-container'>
         <div class='header-title'>AI-Assisted Academic<br>Integrity Risk Detection</div>
         <div class='header-subtitle'>
-        Detect AI-generated content · Analyze writing style · Flag behavioral anomalies
+        Detect AI-generated content · Analyze writing style · Flag behavioral anomalies · Detect peer plagiarism
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -787,8 +794,8 @@ if "🏠" in page:
     c1,c2,c3,c4 = st.columns(4)
     for col, val, lbl in zip(
     [c1,c2,c3,c4],
-    ["99.60%","98.17%","91.96%","3"],   
-    ["M1 Accuracy","M2 Accuracy","M3 Accuracy","Modules"]
+    ["99.60%","98.17%","91.96%","5"],   
+    ["M1 Accuracy","M2 Accuracy","M3 Accuracy","System Modules"]
     ):
         with col:
             st.markdown(f"""
@@ -801,7 +808,21 @@ if "🏠" in page:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<div class='section-header'>How It Works</div>", unsafe_allow_html=True)
 
-    c1,c2,c3 = st.columns(3)
+    st.markdown("""
+    <div style='background:#1B2A4A;
+                border:1px solid #2A3F5F; border-left:3px solid #9B59B6;
+                border-radius:12px; padding:1rem 1.2rem; margin-bottom:1rem;'>
+
+    <b style='color:#9B59B6;'>🔍 Explainable AI (XAI)</b><br>
+
+    <span style='color:#8A99B0; font-size:0.85rem;'>
+    SHAP-based explainability highlights which writing features contributed most to the AI-writing prediction, improving transparency and faculty trust.
+    </span>
+
+    </div>
+    """, unsafe_allow_html=True)
+
+    c1,c2,c3,c4 = st.columns(4)
     modules_info = [
         ("🤖","Module 1","AI Text Detection",
          "Fine-tuned RoBERTa detects AI-generated text with 99.60% accuracy on 44,868 essays","#3498DB"),
@@ -809,18 +830,25 @@ if "🏠" in page:
          "TF-IDF + Random Forest extracts 7 linguistic features to detect AI writing with 98.17% accuracy","#C9A84C"),
         ("📈","Module 3","Behavioral Anomaly",
          "Detects suspicious grade jumps using Random Forest on UCI Student Performance data","#27AE60"),
+        ("📄","Module 5","Peer Plagiarism Detection",
+        "Uses TF-IDF cosine similarity to detect copied submissions between students","#E74C3C"),
     ]
-    for col, (icon,mod,title,desc,color) in zip([c1,c2,c3], modules_info):
+    for col, (icon,mod,title,desc,color) in zip([c1,c2,c3,c4], modules_info):
         with col:
             st.markdown(f"""
             <div style='background:#1B2A4A; border:1px solid #2A3F5F;
                         border-top:3px solid {color}; border-radius:12px;
-                        padding:1.5rem; height:180px;'>
+                        padding:1.5rem; height:260px; display:flex; flex-direction:column; justify-content:space-between;'>
                 <div style='font-size:1.8rem;'>{icon}</div>
                 <div style='font-size:0.7rem; color:#8A99B0; letter-spacing:1px;
                             text-transform:uppercase; margin-top:0.5rem;'>{mod}</div>
                 <div style='font-weight:600; color:{color}; margin:0.3rem 0;'>{title}</div>
-                <div style='font-size:0.82rem; color:#8A99B0;'>{desc}</div>
+                <div style='font-size:0.82rem;
+                            color:#8A99B0;line-height:1.7;
+                            margin-top:0.7rem;
+                            overflow-wrap:break-word;'>
+                {desc}
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -849,8 +877,8 @@ if "🏠" in page:
                 padding:1rem 1.2rem; margin-top:1rem;'>
     <b style='color:#C9A84C;'>⚠️ Important</b><br>
     <span style='color:#8A99B0; font-size:0.85rem;'>
-    This system is a decision-support tool. Risk flags are for faculty review only —
-    not automated accusations. All final decisions remain with the faculty member.
+    This system combines AI detection, behavioral analytics, peer plagiarism detection, and explainable AI to assist faculty in identifying potential academic integrity risks.
+    Risk flags are for faculty review only —  not automated accusations. All final decisions remain with the faculty member.
     </span>
     </div>
     """, unsafe_allow_html=True)
