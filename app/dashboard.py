@@ -346,11 +346,11 @@ def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures)
 
     # Moderate plagiarism
     elif copy_score >= 60:
-        composite += 20
+        composite += 30
 
     # Mild plagiarism
     elif copy_score >= 40:
-        composite += 10
+        composite += 15
 
     # Cap score at 100
     composite = min(composite, 100)
@@ -1189,6 +1189,34 @@ elif "📜" in page:
                         """, unsafe_allow_html=True)
 
                     with ic2:
+                        copy_score = record.get("copy_score") or 0
+                        matched_student = record.get("matched_student", "")
+
+                        # Find matched student name
+                        matched_name = "N/A"
+
+                        if matched_student:
+                            try:
+                                all_records = get_all_results()
+
+                                for r in all_records:
+                                    if str(r["student_id"]) == str(matched_student):
+                                        matched_name = r["student_name"]
+                                        break
+
+                            except:
+                                matched_name = matched_student
+                        
+                        # Copy score color
+                        if copy_score >= 80:
+                            copy_color = "#E74C3C"
+
+                        elif copy_score >= 60:
+                            copy_color = "#F39C12"
+
+                        else:
+                            copy_color = "#27AE60"
+
                         st.markdown(f"""
                         <div style='background:#1B2A4A; border:1px solid #2A3F5F;
                                     border-radius:8px; padding:0.8rem; font-size:0.85rem;'>
@@ -1197,7 +1225,9 @@ elif "📜" in page:
                         Writing Style: <b style='color:#E8E0D0;'>
                         {record.get("module2_label","N/A")}</b><br>
                         Absences: <b style='color:#E8E0D0;'>{record['absences']}</b><br>
-                        Failures: <b style='color:#E8E0D0;'>{record['failures']}</b>
+                        Failures: <b style='color:#E8E0D0;'>{record['failures']}</b><br>
+                        Possible Copy: <b style='color:{copy_color};'>{copy_score}%</b>&nbsp &nbsp &nbsp
+                        Matched Student: <b style='color:#E8E0D0;'>{matched_name}</b>
                         </span>
                         </div>
                         """, unsafe_allow_html=True)
