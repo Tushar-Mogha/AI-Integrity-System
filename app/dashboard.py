@@ -328,7 +328,6 @@ def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures)
         composite = (0.35 * m1) + (0.35 * m2) + (0.30 * m3)
     else:
         composite = (0.30 * m1) + (0.30 * m2) + (0.40 * m3)
-    risk = get_risk(composite)
     wf   = get_writing_features(essay)
 
     past_records = get_all_results()
@@ -338,6 +337,26 @@ def analyze_student(sid, name, essay, G1, G2, G3, absences, studytime, failures)
     copy_flag = plagiarism["is_copied"]
     copy_score = plagiarism["similarity"]
     matched_student = plagiarism["matched_student"]
+
+    # ── Composite Score Adjustment using Module 5 ───────
+
+    # Severe plagiarism
+    if copy_score >= 80:
+        composite += 45 
+
+    # Moderate plagiarism
+    elif copy_score >= 60:
+        composite += 20
+
+    # Mild plagiarism
+    elif copy_score >= 40:
+        composite += 10
+
+    # Cap score at 100
+    composite = min(composite, 100)
+
+    risk = get_risk(composite)
+
     result= {
         "student_id"            : sid,
         "student_name"          : name,
@@ -690,6 +709,8 @@ def show_student_report(result):
     st.markdown("<div class='section-header'>Risk Explanation</div>",
                 unsafe_allow_html=True)
     reasons = []
+    if result.get("copy_detected"):
+        reasons.append( f"Essay shows {result['copy_score']}% similarity with another student submission" )
     if result["module1_ai_score"] > 70:
         reasons.append(f"AI Detection model flagged essay with {result['module1_ai_score']}% AI probability")
     if result["module2_style_score"] > 70:
