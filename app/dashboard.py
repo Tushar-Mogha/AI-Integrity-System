@@ -254,7 +254,7 @@ def predict_module3(G1, G2, G3, absences, studytime, failures):
     # -----------------------------
     # RULE LOGIC
     # -----------------------------
-    if jump_abs > 6:
+    if grade_jump >= 6 or grade_jump <= -4:
         label = "Anomaly"
         final_prob = max(model_anomaly_prob, 0.90)
     
@@ -286,7 +286,7 @@ def predict_module3(G1, G2, G3, absences, studytime, failures):
         if grade_jump > 6:
             reason = "Extreme increase in performance detected"
 
-        elif grade_jump < -6:
+        elif grade_jump <= -4:
             reason = "Extreme decrease in performance detected"
         
         elif consistency >= 5 and jump_abs >= 4:

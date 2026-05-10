@@ -192,7 +192,7 @@ def predict_anomaly(G1, G2, G3, absences, studytime, failures):
     # -----------------------------
 
     # Strong anomaly (extreme jump/dip)
-    if jump_abs > 6:
+    if grade_jump >= 6 or grade_jump <= -4:
         label = "Anomaly"
         final_prob = max(model_anomaly_prob, 0.90)
     
@@ -226,10 +226,10 @@ def predict_anomaly(G1, G2, G3, absences, studytime, failures):
 
     if label == "Anomaly":
 
-        if grade_jump > 6:
+        if grade_jump >= 6:
             reason = "Extreme increase in performance detected"
 
-        elif grade_jump < -6:
+        elif grade_jump <= -4:
             reason = "Extreme decrease in performance detected"
         
         elif consistency >= 5 and jump_abs >= 4:
@@ -293,7 +293,7 @@ test_cases = [
     # ─────────── SUDDEN DECREASE ───────────
     ("Sudden drop (clear anomaly)",     18, 17,  6, 2, 2, 0),
     ("Topper → low",                    20, 20,  8, 3, 2, 0),
-    ("Moderate → very low",             15, 14,  5, 3, 2, 0),
+    ("Moderate → very low",             15, 17,  10, 3, 2, 0),
 
     # ─────────── FLUCTUATIONS ───────────
     ("Zigzag (high-low-high)",          18,  6, 17, 4, 2, 0),
